@@ -1,0 +1,33 @@
+// mutant: the consumer never answers, so F ep.res? is false in the producer
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+
+proc producer(ep : right ch) {
+    loop {
+        let y = 8'd1 >>
+        send ep.req(y) >>
+        assert "requested" (ep.req!) >>
+        assert "answered" (F ep.res?) >>
+        let z = recv ep.res >>
+        assert "value" (z == y) >>
+        cycle 1
+    }
+}
+
+proc consumer(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        let x = recv ep.req >>
+        set r := x >>
+        cycle 1
+    }
+}
+
+proc echo() {
+    chan le -- ri : ch;
+    spawn producer(ri);
+    spawn consumer(le);
+    loop { cycle 1 }
+}

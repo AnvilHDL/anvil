@@ -1,0 +1,11 @@
+// m? : the message is received in this cycle; usable with the core operators
+chan ch {
+    left req : (logic[8]@#1)
+}
+proc atom_recv(ep : left ch) {
+    loop {
+        let x = recv ep.req >>
+        assert "got" (ep.req? && x == 8'd1) >>
+        cycle 1
+    }
+}

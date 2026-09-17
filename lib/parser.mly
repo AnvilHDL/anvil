@@ -86,10 +86,24 @@
 %token KEYWORD_SHARED       (* shared *)
 %token KEYWORD_ASSIGNED     (* assigned *)
 %token KEYWORD_BY           (* by *)
+(*model checker features*)
+%token KEYWORD_ASSERT       (* assert *)
+%token KEYWORD_QUESTION     (* ? *)
+%token KEYWORD_EXCLAMATION   (* ! *)
+%token KEYWORD_NEXT
+%token KEYWORD_ALWAYS
+%token KEYWORD_EVENTUALLY
+%token KEYWORD_NOT          (* not: property-level negation *)
+%token KEYWORD_AND          (* and: property-level conjunction *)
+%token KEYWORD_OR           (* or: property-level disjunction *)
+%nonassoc PREC_PROP
 %nonassoc PREC_NAMED_TYPE
 %right LEFT_ABRACK RIGHT_ABRACK LEFT_ABRACK_EQ RIGHT_ABRACK_EQ
 %right DOUBLE_GT SEMICOLON
 %right KEYWORD_LET KEYWORD_SET KEYWORD_PUT
+%left KEYWORD_OR
+%left KEYWORD_AND
+%nonassoc KEYWORD_NEXT KEYWORD_ALWAYS KEYWORD_EVENTUALLY KEYWORD_NOT
 %left DOUBLE_AND DOUBLE_OR
 %left EXCL_EQ DOUBLE_EQ
 %left XOR AND OR PLUS MINUS
@@ -98,6 +112,8 @@
 %left PERIOD
 %left LEFT_BRACKET
 %nonassoc TILDE UMINUS UAND UOR KEYWORD_IN
+%nonassoc KEYWORD_QUESTION KEYWORD_EXCLAMATION
+%nonassoc RIGHT_PAREN
 %start <Lang.compilation_unit> cunit
 %%
 
@@ -584,6 +600,13 @@ expr:
   { Lang.Debug (Lang.DebugPrint (s, v)) }
 | KEYWORD_DFINISH
   { Lang.Debug Lang.DebugFinish }
+(* model checker features *)
+| KEYWORD_ASSERT; s = STR_LITERAL; LEFT_PAREN; f = formula; RIGHT_PAREN
+  { Lang.Assert (s, f) }
+| e = node(expr); KEYWORD_QUESTION
+  { Lang.IsReceived e }
+| e = node(expr); KEYWORD_EXCLAMATION
+  { Lang.IsSent e }
 | LEFT_BRACKET; li = separated_list(COMMA, node(expr)); RIGHT_BRACKET
   { Lang.List li }
 ;
@@ -695,6 +718,26 @@ un_expr:
   { Lang.Unop (Lang.AndAll, e) } %prec UAND
 | OR; e = node(expr)
   { Lang.Unop (Lang.OrAll, e) } %prec UOR
+;
+
+(* assertion formulas: phi ::= p | N phi | G phi | F phi | not phi | phi and phi | phi or phi *)
+formula:
+| e = node(expr)
+  { Lang.Prop e } %prec PREC_PROP
+| LEFT_PAREN; f = formula; RIGHT_PAREN
+  { f }
+| KEYWORD_NEXT; f = formula
+  { Lang.FNext f }
+| KEYWORD_ALWAYS; f = formula
+  { Lang.FAlways f }
+| KEYWORD_EVENTUALLY; f = formula
+  { Lang.FEventually f }
+| KEYWORD_NOT; f = formula
+  { Lang.FNot f }
+| f1 = formula; KEYWORD_AND; f2 = formula
+  { Lang.FAnd (f1, f2) }
+| f1 = formula; KEYWORD_OR; f2 = formula
+  { Lang.FOr (f1, f2) }
 ;
 
 lvalue:

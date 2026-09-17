@@ -1,0 +1,6 @@
+# label of the assertion under test, BMC bound, expected verdict per target
+label = got
+bound = 8
+instance = dut          # hierarchical path (from ref_top) of the module holding the assertion
+dut = PROVED
+mutant = REFUTED

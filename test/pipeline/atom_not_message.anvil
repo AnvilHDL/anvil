@@ -1,0 +1,11 @@
+// the operand of ? must be a message of the process
+chan ch {
+    left req : (logic[8]@#1)
+}
+proc atom_not_message(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        assert "a" ((*r)?) >>
+        cycle 1
+    }
+}

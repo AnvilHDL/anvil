@@ -1,0 +1,13 @@
+// mutant: the assertion is placed one cycle after the send completes; ep.res! is false there
+chan ch {
+    right res : (logic[8]@#1)
+}
+proc atom_send(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        send ep.res(*r) >>
+        cycle 1 >>
+        assert "sent" (ep.res!) >>
+        cycle 1
+    }
+}

@@ -1,0 +1,16 @@
+chan ch {
+    right tick : (logic[8]@#1)
+}
+
+// mutant (docs/examples/assert/tick3_bug.anvil, proc renamed to tick3): `cycle 2`
+// instead of `cycle 1`, so the period is 4 and the assertion is false
+proc tick3(ep : left ch) {
+    reg n : logic[8];
+    loop {
+        cycle 2 >>
+        send ep.tick(*n) >>
+        assert "period" (N N N ep.tick!) >>   // the next tick is exactly 3 cycles later
+        set n := *n + 8'd1 >>
+        cycle 1
+    }
+}

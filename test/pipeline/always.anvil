@@ -1,0 +1,11 @@
+// G phi: phi holds in every cycle from here on
+chan ch {
+    left req : (logic[8]@#1)
+}
+proc always(ep : left ch) {
+    loop {
+        let x = recv ep.req >>
+        assert "hold" (G ep.req?) >>
+        cycle 1
+    }
+}

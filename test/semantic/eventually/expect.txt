@@ -1,0 +1,7 @@
+# bound 12: the mutant loops with period 5 in the producer and 3 in the consumer;
+# lasso BMC needs the bound to cover one full loop of the product (docs/model-checking-algorithms.md 6.2)
+label = answered
+bound = 12
+instance = dut._spawn_0     # the assertion is in the producer, spawned first by echo
+dut = PROVED
+mutant = REFUTED

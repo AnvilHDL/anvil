@@ -1,0 +1,6 @@
+# bound 12: docs/examples/assert/README.md — tick3 PROVED up to bound 12, tick3_bug REFUTED
+label = period
+bound = 12
+instance = dut
+dut = PROVED
+mutant = REFUTED

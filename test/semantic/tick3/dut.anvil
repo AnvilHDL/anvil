@@ -1,0 +1,15 @@
+chan ch {
+    right tick : (logic[8]@#1)
+}
+
+// emits a tick every 3 cycles, carrying a count of the ticks so far
+proc tick3(ep : left ch) {
+    reg n : logic[8];
+    loop {
+        cycle 1 >>
+        send ep.tick(*n) >>
+        assert "period" (N N N ep.tick!) >>   // the next tick is exactly 3 cycles later
+        set n := *n + 8'd1 >>
+        cycle 1
+    }
+}

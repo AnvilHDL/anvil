@@ -3,6 +3,13 @@ open EventGraph
 open GraphAnalysis
 
 (* Lifetime formatted string for debugging *)
+(* the values read by an assertion: the propositions at the leaves of its formula *)
+let rec formula_leaves (f : lowered_mc_formula) : lowering_data list =
+  match f with
+  | Prop td -> [td]
+  | Next f | Always f | Eventually f | LNot f -> formula_leaves f
+  | LAnd (f1, f2) | LOr (f1, f2) -> formula_leaves f1 @ formula_leaves f2
+
 let _string_of_lt (lt : lifetime) : string =
   String.concat "" (List.map (fun s ->
       Printf.sprintf "%d |> %s | " (fst s).id (string_of_delay_pat (snd s))
@@ -37,7 +44,7 @@ let check_linear (config : Config.compile_config) lookup_message (g : event_grap
           add_msg msg ev ({d = {ty = Recv msg; until = ev}; span = ac_span.span})
         | ImmediateSend (msg, td) ->
           add_msg msg ev ({d = {ty = Send (msg, td); until = ev}; span = ac_span.span})
-          (* add_reg_ops_td ev td *)
+        | Assertion _ -> ()
       ) ev.actions;
       List.iter (fun sa_span ->
         match sa_span.d.ty with
@@ -290,6 +297,9 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
         let e_dpat = delay_pat_globalise msg.endpoint stype.lifetime.e |> delay_pat_reduce_cycles 1 in
         td_to_live_until := (td, (ev, e_dpat))::!td_to_live_until
       | ImmediateRecv _ -> ()
+      | Assertion (_, f) ->
+        let ns = List.map (fun td -> (td, (ev, `Cycles 0))) (formula_leaves f) in 
+        td_to_live_until := Utils.list_unordered_join ns !td_to_live_until
     )
     (fun _ev sa ->
       match sa.d.ty with
@@ -386,6 +396,14 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
       | ImmediateSend (msg, td) ->
         check_send msg td ev ev a.span
       | ImmediateRecv _ -> ()
+      | Assertion (_, f) -> 
+        List.iter (fun (td : lowering_data) ->
+          if lifetime_in_range g.events lookup_message 
+            (EventGraphOps.lifetime_immediate ev) td.lt |> not then 
+              raise (LifetimeCheckError [
+                Text "Value does not live long enough to be asserted";
+                Except.codespan_local a.span
+              ])) (formula_leaves f)
     )
     (fun ev sa ->
       match sa.d.ty with

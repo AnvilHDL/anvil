@@ -1,0 +1,12 @@
+// m! : the message is sent in this cycle
+chan ch {
+    right res : (logic[8]@#1)
+}
+proc atom_send(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        send ep.res(*r) >>
+        assert "sent" (ep.res!) >>
+        cycle 1
+    }
+}

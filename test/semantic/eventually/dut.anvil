@@ -1,0 +1,37 @@
+// docs/examples/assert/echo_assert.anvil with labels on every assertion (the
+// parser requires a label).  Property under test: "answered".
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+
+proc producer(ep : right ch) {
+    loop {
+        let y = 8'd1 >>
+        send ep.req(y) >>
+        assert "requested" (ep.req!) >>   // the request has just been sent
+        assert "answered" (F ep.res?) >>  // it is eventually answered
+        let z = recv ep.res >>
+        assert "value" (z == y) >>        // the answer is the value sent
+        cycle 1
+    }
+}
+
+proc consumer(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        let x = recv ep.req >>
+        assert "got" (ep.req? && x == 8'd1) >> // received, and it is the value the producer sends
+        set r := x >>
+        cycle 1 >>
+        send ep.res(*r) >>
+        cycle 1
+    }
+}
+
+proc echo() {
+    chan le -- ri : ch;
+    spawn producer(ri);
+    spawn consumer(le);
+    loop { cycle 1 }
+}

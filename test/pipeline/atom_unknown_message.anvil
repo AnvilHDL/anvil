@@ -1,0 +1,10 @@
+// ep.nope is not a message of the channel class
+chan ch {
+    left req : (logic[8]@#1)
+}
+proc atom_unknown_message(ep : left ch) {
+    loop {
+        assert "a" (ep.nope?) >>
+        cycle 1
+    }
+}

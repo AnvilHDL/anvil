@@ -1,0 +1,11 @@
+// mutant: the assertion checks the wrong value (8'd2); the environment sends 8'd1
+chan ch {
+    left req : (logic[8]@#1)
+}
+proc atom_recv(ep : left ch) {
+    loop {
+        let x = recv ep.req >>
+        assert "got" (ep.req? && x == 8'd2) >>
+        cycle 1
+    }
+}

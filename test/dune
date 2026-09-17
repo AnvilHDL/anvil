@@ -1,2 +1,8 @@
+; Kind 1: full-pipeline tests. Each test/pipeline/*.anvil is compiled with the
+; library; the expected outcome (generated SV lines, or a compile error) is in
+; test_pipeline.ml. These files double as examples of the assertion language.
 (test
- (name anvil))
+ (name test_pipeline)
+ (modules test_pipeline)
+ (libraries anvil str)
+ (deps (glob_files pipeline/*.anvil)))

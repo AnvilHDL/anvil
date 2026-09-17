@@ -1,0 +1,10 @@
+// N, G, F are admitted only inside an assertion body
+chan ch {
+    left req : (logic[8]@#1)
+}
+proc temporal_outside_assert(ep : left ch) {
+    loop {
+        let b = N ep.req? >>
+        cycle 1
+    }
+}

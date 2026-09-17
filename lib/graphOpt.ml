@@ -421,7 +421,15 @@ module CombSimplPass = struct
         | MatchCases cases ->
           MatchCases (List.map replace_lowering_data cases)
       in
-
+      let rec replace_formula = function 
+        | Prop td -> Prop (replace_lowering_data td)
+        | Next f -> Next (replace_formula f)
+        | Always f -> Always (replace_formula f)
+        | Eventually f -> Eventually (replace_formula f)
+        | LNot f -> LNot (replace_formula f)
+        | LAnd (f1, f2) -> LAnd (replace_formula f1, replace_formula f2)
+        | LOr (f1, f2) -> LOr (replace_formula f1, replace_formula f2)
+      in
       let merge_event old_id ev =
         let actions = List.map (fun (action: action Lang.ast_node) ->
           let d = match action.d with
@@ -431,6 +439,7 @@ module CombSimplPass = struct
           | DebugFinish -> DebugFinish
           | ImmediateRecv msg -> ImmediateRecv msg
           | ImmediateSend (msg, td) -> ImmediateSend (msg, replace_lowering_data td)
+          | Assertion (s, f) -> Assertion (s, replace_formula f)
           in
           {action with d}
         ) ev.actions in

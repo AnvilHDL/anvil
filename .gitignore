@@ -11,3 +11,7 @@
 **/*.anvil.sv
 **.dot
 **.png
+
+# semantic tests: hand-written reference SVA is source, not generated output
+!/test/semantic/*/reference*.sv
+/test/semantic/_out/

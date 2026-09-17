@@ -1,0 +1,5 @@
+label = sent
+bound = 8
+instance = dut
+dut = PROVED
+mutant = REFUTED

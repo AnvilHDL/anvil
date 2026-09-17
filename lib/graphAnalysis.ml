@@ -591,6 +591,7 @@ let rec recurse_unfold expr_full_node expr_node =
       )
     | Unop (op, expr_node') ->
       Unop (op, unfold expr_node')
+
     | Tuple expr_nodes ->
       Tuple (List.map unfold expr_nodes)
     | Let (idents, dtype, e) ->
@@ -627,6 +628,19 @@ let rec recurse_unfold expr_full_node expr_node =
       )
     | Debug (DebugPrint (format, es)) ->
       Debug (DebugPrint (format, List.map unfold es))
+    | Assert (format, f) ->
+      let rec unfold_f : Lang.mc_formula -> Lang.mc_formula = function
+        | Prop e -> Prop (unfold e)
+        | FNext f -> FNext (unfold_f f)
+        | FAlways f -> FAlways (unfold_f f)
+        | FEventually f -> FEventually (unfold_f f)
+        | FNot f -> FNot (unfold_f f)
+        | FAnd (f1, f2) -> FAnd (unfold_f f1, unfold_f f2)
+        | FOr (f1, f2) -> FOr (unfold_f f1, unfold_f f2)
+      in Assert (format, unfold_f f)
+    | IsReceived e -> IsReceived (unfold e)
+    | IsSent e -> IsSent (unfold e)
+
     | Send sp ->
       Send {sp with send_data = unfold sp.send_data}
     | SharedAssign (ident, e') ->
