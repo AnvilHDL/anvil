@@ -1,0 +1,17 @@
+// connectives between temporal formulas stay in the property:
+//   G a and N b  ->  (always (wa)) and (nexttime (wb))
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+proc and_next(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        let x = recv ep.req >>
+        assert "stored_then_sent" (N (*r == 8'd0) and N N ep.res!) >>
+        set r := x >>
+        cycle 1 >>
+        send ep.res(*r) >>
+        cycle 1
+    }
+}

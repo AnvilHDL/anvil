@@ -1,0 +1,13 @@
+// F phi: phi holds in some cycle from here on. A request is eventually answered.
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+proc eventually(ep : right ch) {
+    loop {
+        send ep.req(8'd1) >>
+        assert "answered" (F ep.res?) >>
+        let z = recv ep.res >>
+        cycle 1
+    }
+}

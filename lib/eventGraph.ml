@@ -91,12 +91,24 @@ and action =
   | PutShared of string * shared_var_info * lowering_data
   | ImmediateSend of Lang.message_specifier * lowering_data
   | ImmediateRecv of Lang.message_specifier
+  | Assertion of string * lowered_mc_formula (** [assert "label" (phi)], lowered *)
 
 (** Type of an action that may take multiple cycles. Those
 are basically those that synchronise through message passing. *)
 and sustained_action_type =
   | Send of Lang.message_specifier * lowering_data
   | Recv of Lang.message_specifier
+
+and lowered_mc_formula = 
+  | Prop of lowering_data
+  | Next of lowered_mc_formula
+  | Always of lowered_mc_formula
+  | Eventually of lowered_mc_formula
+  | LNot of lowered_mc_formula
+  | LAnd of lowered_mc_formula * lowered_mc_formula
+  | LOr of lowered_mc_formula * lowered_mc_formula
+
+
 
 (** A condition.
 

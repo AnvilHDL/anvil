@@ -634,6 +634,10 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
         ctx.current.actions <- (let open EventGraph in tag_with_span e.span DebugFinish)::ctx.current.actions;
         {ld = {w = None; lt = EventGraphOps.lifetime_const ctx.current; reg_borrows = []; dtype = unit_dtype}}
     )
+  | Assert (s, f) -> 
+    let lf = construct_mc_formula graph ci ctx f in 
+    ctx.current.actions <- (let open EventGraph in Assertion (s, lf) |> tag_with_span e.span) :: ctx.current.actions;
+    {ld = {w = None; lt = EventGraphOps.lifetime_const ctx.current; reg_borrows = []; dtype = unit_dtype}}
   | Send send_pack ->
     (* just check that the endpoint and the message type is defined *)
     let ep  = send_pack.send_msg_spec.endpoint in
@@ -656,6 +660,21 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
         ty = Send (send_pack.send_msg_spec, td.ld)
       } |> tag_with_span e.span)::ctx.current.sustained_actions;
     ntd
+  | IsReceived m | IsSent m ->
+    (* the operand must name a message of this process: ep.msg *)
+    let msg_spec = match m.d with
+      | Indirect ({d = Identifier ep; _}, msg) -> ({endpoint = ep; msg} : Lang.message_specifier)
+      | _ -> raise (event_graph_error_default "Operand of ? or ! is not a message" m.span)
+    in
+    if not (MessageCollection.endpoint_owned graph.messages msg_spec.endpoint) then
+      raise (event_graph_error_default (Printf.sprintf "Endpoint %s not owned by the process" msg_spec.endpoint) m.span);
+    let _ = MessageCollection.lookup_message graph.messages msg_spec ci.channel_classes
+      |> unwrap_or_err "Not a message of this process" m.span in
+    let wires, w_valid = WireCollection.add_msg_valid_port graph.thread_id ci.typedefs msg_spec graph.wires in
+    let wires, w_ack = WireCollection.add_msg_ack_port graph.thread_id ci.typedefs msg_spec wires in
+    let wires, w = WireCollection.add_binary graph.thread_id ci.typedefs ci.macro_defs Lang.LAnd w_valid (`Single w_ack) wires in
+    graph.wires <- wires;
+    Typing.immediate_data graph (Some w) `Logic ctx.current
   | Recv recv_pack ->
     let ep  = recv_pack.recv_msg_spec.endpoint in
     if not (MessageCollection.endpoint_owned graph.messages ep) then
@@ -834,5 +853,19 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     ctx.current.is_recurse <- true;
     Typing.const_data graph None unit_dtype ctx.current
   | Tuple _ -> raise (event_graph_error_default "Unimplemented expression!" e.span)
+
+and construct_mc_formula (graph : event_graph) (ci : cunit_info) 
+(ctx : build_context) (f : mc_formula) : lowered_mc_formula = 
+  match f with 
+  | Prop e -> Prop (construct_graphIR graph ci ctx e).ld
+  | FNext f' -> Next (construct_mc_formula graph ci ctx f')
+  | FAlways f' -> Always (construct_mc_formula graph ci ctx f')
+  | FEventually f' -> Eventually (construct_mc_formula graph ci ctx f')
+  | FNot f' -> LNot (construct_mc_formula graph ci ctx f')
+  | FAnd (f1, f2) -> LAnd ((construct_mc_formula graph ci ctx f1)
+                          , (construct_mc_formula graph ci ctx f2))
+  | FOr (f1, f2) -> LOr ((construct_mc_formula graph ci ctx f1)
+                          , (construct_mc_formula graph ci ctx f2))
+
 
 

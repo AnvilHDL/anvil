@@ -1,0 +1,19 @@
+// a propositional body under G is one wire:  G (a && ~b)  ->  always (w)
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+proc fold(ep : left ch) {
+    reg r : logic[8];
+    reg busy : logic;
+    loop {
+        let x = recv ep.req >>
+        assert "no_overlap" (G (ep.req? && ~*busy)) >>
+        set r := x >>
+        set busy := 1'b1 >>
+        cycle 1 >>
+        send ep.res(*r) >>
+        set busy := 1'b0 >>
+        cycle 1
+    }
+}

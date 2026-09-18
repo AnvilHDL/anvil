@@ -1,0 +1,16 @@
+// not F p: p never happens after this point
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+proc never(ep : left ch) {
+    reg r : logic[8];
+    loop {
+        let x = recv ep.req >>
+        assert "no_early_response" (not F ep.res!) >>
+        set r := x >>
+        cycle 2 >>
+        send ep.res(*r) >>
+        cycle 1
+    }
+}

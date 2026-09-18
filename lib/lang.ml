@@ -428,12 +428,27 @@ and expr =
   | Match of expr_node * ((expr_node * expr_node option) list)
   | Read of lvalue (** reading a value from a register (leading to a borrow) *)
   | Debug of debug_op
+  (* assertions *)
+  | Assert of string * mc_formula               (** [assert "label" (phi)] *)
+  | IsReceived of expr_node                  (** [m?]: m is received in this cycle *)
+  | IsSent of expr_node                      (** [m!]: m is sent in this cycle *)
   | Send of send_pack
   | Recv of recv_pack
   | SharedAssign of identifier * expr_node (** make ready a shared value *)
   | List of expr_node list (** array/list of expressions *)
   | Recurse
 and expr_node = expr ast_node
+
+(** An assertion formula (phi). Its leaves are propositions, expressions
+    of the core language; the connectives are those of SVA. *)
+and mc_formula =
+  | Prop of expr_node                        (** [p] *)
+  | FNext of mc_formula                         (** [N phi] *)
+  | FAlways of mc_formula                       (** [G phi] *)
+  | FEventually of mc_formula                   (** [F phi] *)
+  | FNot of mc_formula                          (** [not phi] *)
+  | FAnd of mc_formula * mc_formula                (** [phi and phi] *)
+  | FOr of mc_formula * mc_formula                 (** [phi or phi] *)
 
 (** A "location" that can be assigned to. *)
 and lvalue =
@@ -448,7 +463,8 @@ and index =
 
 and debug_op =
   | DebugPrint of string * expr_node list
-  | DebugFinish
+  | DebugFinish 
+
 
 let delay_immediate = `Cycles 0
 let delay_single_cycle = `Cycles 1
@@ -713,6 +729,18 @@ let rec substitute_expr_identifier (id: identifier) (value: expr_node) (idx : in
   | Debug (DebugPrint (msg, exprs)) ->
       Debug (DebugPrint (msg, List.map subst exprs))
   | Debug other_debug -> Debug other_debug
+  | Assert (s, f) ->
+    let rec subst_f : mc_formula -> mc_formula = function
+      | Prop e -> Prop (subst e)
+      | FNext f -> FNext (subst_f f)
+      | FAlways f -> FAlways (subst_f f)
+      | FEventually f -> FEventually (subst_f f)
+      | FNot f -> FNot (subst_f f)
+      | FAnd (f1, f2) -> FAnd (subst_f f1, subst_f f2)
+      | FOr (f1, f2) -> FOr (subst_f f1, subst_f f2)
+    in Assert (s, subst_f f)
+  | IsReceived e -> IsReceived (subst e)
+  | IsSent e -> IsSent (subst e)
   | IfExpr (cond, then_expr, else_expr) ->
       IfExpr (
         subst cond,

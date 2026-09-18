@@ -1,0 +1,19 @@
+// regression: a.b remains record field access, not a message
+struct value_8bit {
+    v : logic[8]
+}
+struct memory_map {
+    address : logic[8],
+    data : logic[8]
+}
+chan ch {
+    left req : (memory_map@#2)
+}
+proc record_field(e : left ch) {
+    reg m : value_8bit[256];
+    loop {
+        let r = recv e.req >>
+        set m[r.address] := r.data >>
+        cycle 1
+    }
+}

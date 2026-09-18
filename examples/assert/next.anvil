@@ -1,0 +1,15 @@
+// N phi: phi holds in the next cycle. tick every 3 cycles; the next tick is
+// sent exactly 3 cycles after this one.
+chan ch {
+    right tick : (logic[8]@#1)
+}
+proc next(ep : left ch) {
+    reg n : logic[8];
+    loop {
+        cycle 1 >>
+        send ep.tick(*n) >>
+        assert "period" (N N N ep.tick!) >>
+        set n := *n + 8'd1 >>
+        cycle 1
+    }
+}

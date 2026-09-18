@@ -1,0 +1,19 @@
+// either branch may hold:  F a or G b
+chan ch {
+    left  req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+proc or_temporal(ep : left ch) {
+    reg r : logic[8];
+    reg idle : logic;
+    loop {
+        let x = recv ep.req >>
+        assert "answer_or_idle" (F ep.res! or G (*idle == 1'b1)) >>
+        set r := x >>
+        set idle := 1'b0 >>
+        cycle 1 >>
+        send ep.res(*r) >>
+        set idle := 1'b1 >>
+        cycle 1
+    }
+}
