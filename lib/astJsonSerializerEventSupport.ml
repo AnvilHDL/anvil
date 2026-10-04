@@ -657,7 +657,7 @@ let sustain_lifetime_for_msg (ctx : event_json_context) (tid : int) (base_eid : 
     let* cc = MessageCollection.lookup_channel_class ctx.channel_classes endpoint.channel_class in
     let* msg = List.find_opt (fun (m : message_def) -> m.name = spec.msg) cc.messages in
     let* msg = Some { msg with dir = get_message_direction msg.dir endpoint.dir } in
-    Some (ParamConcretise.concretise_message cc.params endpoint.channel_params msg)
+    Some (ParamConcretise.concretise_message endpoint.channel_class cc.params endpoint.channel_params msg)
   in
   let resolve_message (graph : EventGraph.event_graph) (spec : message_specifier) =
     match MessageCollection.lookup_message graph.messages spec ctx.channel_classes with
