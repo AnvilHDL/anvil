@@ -263,6 +263,7 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
   let delay_pat_reduce_cycles n dpat =
     match dpat with
     | `Cycles n' -> `Cycles (max 0 (n' - n))
+    | `Message_with_offset (m, o, true) -> `Message_with_offset (m, max 0 (o - n), true)
     | _ -> dpat
   in
   let td_to_live_until = ref [] in
