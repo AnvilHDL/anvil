@@ -1,0 +1,15 @@
+// A recursive thread with two recurse sites; each one restarts the thread.
+proc recurse_multi_site() {
+    reg c : logic[4];
+    recursive {
+        set c := *c + 4'd1 >>
+        if (*c == 4'd3) {
+            dprint "short %d" (*c) >> cycle 1 >> recurse
+        } else {
+            dprint "long %d" (*c) >> cycle 2 >> recurse
+        }
+    }
+    loop {
+        cycle 30 >> dfinish
+    }
+}

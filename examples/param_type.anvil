@@ -2,7 +2,7 @@ proc sub<T : type>() {
     reg r : T;
     loop {
         dprint "Value = %d" (*r);
-        set r := *r + 1
+        set r := *r + <(1)::T>
     }
 }
 

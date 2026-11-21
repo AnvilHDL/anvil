@@ -1,4 +1,18 @@
-import "pipeline/Reg.anvil"
+// Pipeline components
+
+chan Reg_itfc<T : type> {
+    left input_v : (T@#1) @#1-@dyn,
+    right output : (T@#1) @#input_v+1-@#input_v+1
+}
+
+proc Reg<T : type> (endp : left Reg_itfc<T>) {
+    reg r : T;
+    loop {
+        let r_val = recv endp.input_v >>
+        set r := r_val >>
+        send endp.output (*r)
+    }
+}
 
 proc simple_usereg_pipeline () {
     chan le -- ri : Reg_itfc<logic>;

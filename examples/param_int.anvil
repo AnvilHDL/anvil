@@ -2,7 +2,7 @@ proc sub<n : int>() {
     reg r : logic[n];
     loop {
         dprint "Value = %d" (*r);
-        set r := *r + 1
+        set r := *r + <(1)::logic[n]>
     }
 }
 
