@@ -26,8 +26,28 @@ let _parse config =
   !cunits
 
 
+(** Reject duplicate process names. *)
+let check_duplicate_procs cunits =
+  let same_file a b =
+    a = b || (try Unix.realpath a = Unix.realpath b with Unix.Unix_error _ -> false) in
+  let seen = Hashtbl.create 32 in
+  List.iter (fun (file_name, (cunit : Lang.compilation_unit)) ->
+    List.iter (fun (proc : Lang.proc_def) ->
+      match Hashtbl.find_opt seen proc.name with
+      | None -> Hashtbl.add seen proc.name (file_name, proc.span)
+      | Some (first_file, first_span) when same_file first_file file_name && first_span = proc.span -> ()
+      | Some (first_file, first_span) ->
+        raise_compile_error None Except.[
+          Text (Printf.sprintf "Process '%s' is defined more than once:" proc.name);
+          codespan_in first_file first_span;
+          codespan_in file_name proc.span;
+        ]
+    ) cunit.procs
+  ) (List.rev cunits)
+
 (** Performs type and lifetime checks, and returns the graph collection queue *)
 let _check config cunits =
+  check_duplicate_procs cunits;
 
   (* collect all channel class and type definitions *)
   let all_channel_classes = List.concat_map (fun (_, cunit) -> let open Lang in cunit.channel_classes) cunits in

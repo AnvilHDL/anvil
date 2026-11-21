@@ -44,8 +44,8 @@ let error_message_to_json_error (error_type : string) (msg : Except.error_messag
         in
         let trace = {
           path = resolved_path;
-          start_pos = { line = span.st.pos_lnum; col = span.st.pos_cnum - span.st.pos_bol };
-          end_pos = { line = span.ed.pos_lnum; col = span.ed.pos_cnum - span.ed.pos_bol };
+          start_pos = { line = span.st.pos_lnum; col = SourceColumn.utf16_column span.st };
+          end_pos = { line = span.ed.pos_lnum; col = SourceColumn.utf16_column span.ed };
         } in
         let str = SpanPrinter.string_of_code_span span in
         { kind = "codespan"; text = str; trace = Some trace }

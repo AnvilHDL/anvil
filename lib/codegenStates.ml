@@ -17,6 +17,7 @@ let collect_reg_states g =
     match e.source with
     | `Seq (_, d) -> (
       match d with
+      | `Cycles 0 -> []
       | `Cycles n ->
         if g.is_general_recursive || n = 1 then (
           (* split into one-hot single cycles in general recursive case *)
@@ -79,7 +80,10 @@ let codegen_next printer (graphs : EventGraph.event_graph_collection)
   let print_line = CodegenPrinter.print_line printer in
   let print_lines = CodegenPrinter.print_lines printer in
   let lookup_msg_def msg = MessageCollection.lookup_message pg.messages msg graphs.channel_classes in
-  let recurse_event = List.find (fun e -> let open EventGraph in e.is_recurse) g.events in
+  let restart =
+    List.filter (fun (e : EventGraph.event) -> e.is_recurse) g.events
+    |> List.map (fun (e : EventGraph.event) -> EventStateFormatter.format_current g.thread_id e.id)
+  in
   let print_compute_next (e : EventGraph.event) =
     let cn = EventStateFormatter.format_current g.thread_id e.id in
     match e.source with
@@ -106,6 +110,8 @@ let codegen_next printer (graphs : EventGraph.event_graph_collection)
               Printf.sprintf "assign %s_n = %s ? %d'd1 : %s ? '0 : %s_q ? (%s_q + %d'd1) : %s_q;" sn cn' width cn sn sn width sn
             ] |> print_lines
           )
+        | `Cycles 0 ->
+          Printf.sprintf "assign %s = %s;" cn cn' |> print_line
         | `Cycles _ ->
           failwith "Invalid number of cycles" (* TODO: proper handling *)
         | `Send msg ->
@@ -165,10 +171,9 @@ let codegen_next printer (graphs : EventGraph.event_graph_collection)
       ] |> print_lines
     | `Root None ->
       [
-        Printf.sprintf "assign %s = _init_%d || %s;"
+        Printf.sprintf "assign %s = %s;"
           cn
-          g.thread_id
-          (EventStateFormatter.format_current g.thread_id recurse_event.id)
+          (String.concat " || " (Printf.sprintf "_init_%d" g.thread_id :: restart))
       ] |> print_lines
     | `Root (Some (e', br_side_info)) ->
       let cn' = EventStateFormatter.format_current g.thread_id e'.id in
@@ -240,12 +245,13 @@ let codegen_next printer (graphs : EventGraph.event_graph_collection)
   in
   List.iter print_compute_next g.events
 
-let codegen_actions printer (g : EventGraph.event_graph) =
+let codegen_actions ?(action_filter = fun _ -> true) printer (g : EventGraph.event_graph) =
   let print_line ?(lvl_delta_pre = 0) ?(lvl_delta_post = 0) =
     CodegenPrinter.print_line printer ~lvl_delta_pre:lvl_delta_pre ~lvl_delta_post:lvl_delta_post in
   let open EventGraph in
   let print_event_actions (e : event) =
-    if e.actions <> [] then begin
+    let actions = List.filter action_filter e.actions in
+    if actions <> [] then begin
       EventStateFormatter.format_current g.thread_id e.id
       |> Printf.sprintf "if (%s) begin" |> print_line ~lvl_delta_post:1;
       let print_action (a : action Lang.ast_node) =
@@ -272,14 +278,61 @@ let codegen_actions printer (g : EventGraph.event_graph) =
         | ImmediateRecv _ -> ()
         | ImmediateSend _ -> ()
       in
-      List.iter print_action e.actions;
+      List.iter print_action actions;
       print_line ~lvl_delta_pre:(-1) "end"
     end else ()
   in
   List.iter print_event_actions g.events
 
+(** Is a register assignment to one of [regs]. *)
+let action_assigns_reg_in regs (a : EventGraph.action Lang.ast_node) =
+  match a.d with
+  | EventGraph.RegAssign (lval_info, _) -> Utils.StringSet.mem lval_info.lval_range.subreg_name regs
+  | _ -> false
+
+(** Registers assigned by multiple threads. *)
+let shared_regs_of_proc (pg : EventGraph.proc_graph) =
+  let (_, shared) = List.fold_left (fun (seen, shared) (g, _) ->
+    let written = Utils.StringSet.of_list (GraphAnalysis.graph_owned_regs g) in
+    (Utils.StringSet.union seen written,
+     Utils.StringSet.union shared (Utils.StringSet.inter seen written))
+  ) (Utils.StringSet.empty, Utils.StringSet.empty) pg.threads in
+  shared
+
+(** Single clocked block for [shared_regs]. *)
+let codegen_shared_reg_transitions printer (pg : EventGraph.proc_graph) shared_regs =
+  if not (Utils.StringSet.is_empty shared_regs) then (
+    let print_line ?(lvl_delta_pre = 0) ?(lvl_delta_post = 0) =
+      CodegenPrinter.print_line printer ~lvl_delta_pre:lvl_delta_pre ~lvl_delta_post:lvl_delta_post in
+    let reset regs = Utils.StringSet.iter (fun name ->
+      Printf.sprintf "%s <= '0;" (CodegenFormat.format_regname_current name) |> print_line
+    ) regs in
+    print_line ~lvl_delta_post:1
+      "always_ff @(posedge clk_i or negedge rst_ni) begin : _shared_reg_transition";
+    print_line ~lvl_delta_post:1 "if (~rst_ni) begin";
+    reset shared_regs;
+    print_line ~lvl_delta_pre:(-1) ~lvl_delta_post:1 "end else begin";
+    List.iter (fun ((g : EventGraph.event_graph), reset_by) ->
+      codegen_actions ~action_filter:(action_assigns_reg_in shared_regs) printer g;
+      match reset_by with
+      | None -> ()
+      | Some (reset_by : Lang.message_specifier) ->
+        let owned = Utils.StringSet.inter shared_regs
+          (Utils.StringSet.of_list (GraphAnalysis.graph_owned_regs g)) in
+        let reset_msg_signal = CodegenFormat.format_msg_data_signal_name
+                              (CodegenFormat.canonicalize_endpoint_name reset_by.endpoint g)
+                              reset_by.msg 0 in
+        print_line ~lvl_delta_post:1 @@ Printf.sprintf "if (%s) begin" reset_msg_signal;
+        reset owned;
+        print_line ~lvl_delta_pre:(-1) "end"
+    ) pg.threads;
+    print_line ~lvl_delta_pre:(-1) "end";
+    print_line ~lvl_delta_pre:(-1) "end"
+  )
+
 
 let codegen_transition printer (_graphs : EventGraph.event_graph_collection)
+                               shared_regs
                                (g : EventGraph.event_graph) (reset_by : Lang.message_specifier option) =
   let open EventGraph in
   let print_line ?(lvl_delta_pre = 0) ?(lvl_delta_post = 0) =
@@ -288,7 +341,8 @@ let codegen_transition printer (_graphs : EventGraph.event_graph_collection)
   (* reset states *)
 
   let owned_regs = GraphAnalysis.graph_owned_regs g |> Utils.StringSet.of_list in
-  let owned_regs = Utils.StringMap.filter (fun name _ -> Utils.StringSet.mem name owned_regs) g.regs in
+  let owned_regs = Utils.StringMap.filter (fun name _ ->
+    Utils.StringSet.mem name owned_regs && not (Utils.StringSet.mem name shared_regs)) g.regs in
 
   Printf.sprintf "always_ff @(posedge clk_i or negedge rst_ni) begin : _thread_%d_st_transition" g.thread_id |> print_line ~lvl_delta_post:1;
   print_line ~lvl_delta_post:1 "if (~rst_ni) begin";
@@ -302,7 +356,7 @@ let codegen_transition printer (_graphs : EventGraph.event_graph_collection)
   List.iter (fun (_, sn) -> Printf.sprintf "%s_q <= '0;" sn |> print_line) reg_states;
   print_line ~lvl_delta_pre:(-1) ~lvl_delta_post:1 "end else begin";
   (* actions *)
-  codegen_actions printer g;
+  codegen_actions ~action_filter:(fun a -> not (action_assigns_reg_in shared_regs a)) printer g;
   (
     match reset_by with
     | None -> ()
@@ -483,6 +537,7 @@ let codegen_sustained_actions printer (graphs : EventGraph.event_graph_collectio
 let codegen_states printer
   (graphs : EventGraph.event_graph_collection)
   (pg : EventGraph.proc_graph)
+  shared_regs
   (g : EventGraph.event_graph)
   (reset_by : Lang.message_specifier option) =
   if g.comb then(
@@ -491,7 +546,7 @@ let codegen_states printer
     codegen_decl printer g;
     codegen_next printer graphs pg g;
     codegen_sustained_actions printer graphs pg g;
-    codegen_transition printer graphs g reset_by
+    codegen_transition printer graphs shared_regs g reset_by
   )
 
 let codegen_proc_states printer proc =

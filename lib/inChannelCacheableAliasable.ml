@@ -38,6 +38,9 @@ let with_open filename f =
   let t = { buffer; pos = 0L; len } in
   f t
 
+(* cached file contents *)
+let cached_contents filename = Hashtbl.find_opt file_data_cache filename
+
 
 (* Opens a file similarly to [with_open], but allows aliasing the filename for caching purposes.
    This is useful when, e.g., reading from standard input, but wanting to associate it with a filename or base path.

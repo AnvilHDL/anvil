@@ -388,11 +388,12 @@ let events_max_dist events lookup_message ev =
       | `Seq (e', d') ->
         update_min2_outs (-(pred_min_dist.(e.id) + (get_min_delay d'))) e e'
       | `Root (Some (e', br_side)) ->
-        let other_side =
+        let other_side_idx =
           if br_side.branch_side_sel = 0 then 1 else 0
         in
-        let other_side = List.nth br_side.owner_branch.branches_to other_side in
-        if not (is_pred other_side) || br_side.branch_side_sel = 0 then (
+        let other_side = List.nth_opt br_side.owner_branch.branches_to other_side_idx in
+        if (match other_side with Some o -> not (is_pred o) | None -> true)
+           || br_side.branch_side_sel = 0 then (
           let m =
             List.fold_left (fun v e ->
               if is_pred e then
@@ -651,10 +652,13 @@ let recurse_unfold_for_checks construct_graphIR ci shared_vars_info graph (expr_
     expr_node in
   (* now just check the total *)
   let root = List.find (fun e -> e.source = `Root None) tmp_graph.events in
-  let recurse = List.find (fun e -> e.is_recurse) tmp_graph.events in
+  let recurses = List.filter (fun e -> e.is_recurse) tmp_graph.events in
   let dists = event_min_distance_with_later tmp_graph.events root root in
   let full_dist = IntHashTbl.find dists td.ld.lt.live.id in
-  let recurse_dist = IntHashTbl.find dists recurse.id in
+  let recurse_dist =
+    List.fold_left (fun d (r : event) -> min d (IntHashTbl.find dists r.id))
+      event_distance_max recurses
+  in
   if recurse_dist = 0 then
     raise (event_graph_error_default "Recurse delay must be greater than 0!" expr_node.span);
   (* the number of times to unfold is minimum for the recurse time to first pass the end event *)

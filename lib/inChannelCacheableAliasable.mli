@@ -7,6 +7,9 @@ type t = {
 
 val with_open : string -> (t -> 'a) -> 'a
 val with_open_aliased : string -> string -> (t -> 'a) -> 'a
+
+(** Cached file contents. *)
+val cached_contents : string -> bytes option
 val input : t -> bytes -> int64 -> int64 -> int64
 val input_line : t -> string option
 val seek : t -> int64 -> unit

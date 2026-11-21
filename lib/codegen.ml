@@ -28,16 +28,16 @@ let codegen_ports printer (graphs : event_graph_collection)
   port_list
 
 let codegen_spawns printer (graphs : event_graph_collection) (g : proc_graph) =
-  
-  let gen_connect = fun (dst : string) (src : string) ->
-    Printf.sprintf ",.%s (%s)" dst src |> CodegenPrinter.print_line printer
+
+  let format_connection (dst : string) (src : string) =
+    Printf.sprintf ".%s (%s)" dst src
   in
-  let gen_connect_post = fun (dst : string) (src : string) ->
-    Printf.sprintf ".%s (%s)," dst src |> CodegenPrinter.print_line printer 
-  in
-  
-  let gen_connect_blank = fun (dst : string) (src : string) ->
-    Printf.sprintf ".%s (%s)" dst src |> CodegenPrinter.print_line printer 
+  let print_connections connections =
+    let connection_count = List.length connections in
+    List.iteri (fun idx connection ->
+      let suffix = if idx = connection_count - 1 then "" else "," in
+      Printf.sprintf "%s%s" connection suffix |> CodegenPrinter.print_line printer
+    ) connections
   in
 
   let gen_spawn = fun (idx : int) ((module_name, spawn) : string * (spawn_def ast_node)) ->
@@ -52,94 +52,54 @@ let codegen_spawns printer (graphs : event_graph_collection) (g : proc_graph) =
     | _ -> true in
     let is_spawn_comb = (List.for_all (fun (thread , _) ->
     (thread : EventGraph.event_graph).comb
-  ) proc_other.threads) && (is_not_extern) in
+  ) proc_other.threads) && (is_not_extern) && proc_other.spawns = [] in
 
     Printf.sprintf "%s _spawn_%d (" module_name idx|> CodegenPrinter.print_line printer ~lvl_delta_post:1;
-    if (not is_spawn_comb) then(
-        CodegenPrinter.print_line printer ".clk_i,";
-        CodegenPrinter.print_line printer ".rst_ni";
-    );
-    (* connect the wires *)
-    
-    let connect_endpoints = fun (arg_endpoint : endpoint_def) (param_ident : identifier) ->
-      let endpoint_local = 
+
+    let endpoint_connections = fun (arg_endpoint : endpoint_def) (param_ident : identifier) ->
+      let endpoint_local =
         match MessageCollection.lookup_endpoint g.messages param_ident with
         | Some ep -> ep
-        | None -> 
+        | None ->
             raise (Failure (Printf.sprintf "Could not find endpoint '%s'in parent process" param_ident))
       in
       let endpoint_name_local = CodegenFormat.canonicalize_endpoint_name param_ident (List.hd g.threads |> fst) in
       let cc = MessageCollection.lookup_channel_class graphs.channel_classes endpoint_local.channel_class |> Option.get in
-      let print_msg_con = fun (msg : message_def) ->
+      let msg_connections = fun (msg : message_def) ->
         let msg = ParamConcretise.concretise_message endpoint_local.channel_class cc.params endpoint_local.channel_params msg in
-        if CodegenPort.message_has_valid_port msg then
-            gen_connect (Format.format_msg_valid_signal_name arg_endpoint.name msg.name)
-              (Format.format_msg_valid_signal_name endpoint_name_local msg.name)
-        else ();
-        if CodegenPort.message_has_ack_port msg then
-          gen_connect (Format.format_msg_ack_signal_name arg_endpoint.name msg.name)
-            (Format.format_msg_ack_signal_name endpoint_name_local msg.name)
-        else ();
-        let print_data_con = fun fmt idx _ ->
-          if CodegenPort.message_has_data_port msg idx then
-          (
-            if(is_spawn_comb) then (  
-              gen_connect_post (fmt arg_endpoint.name msg.name idx)
-                (fmt endpoint_name_local msg.name idx)
-            )
-            else (
-              gen_connect (fmt arg_endpoint.name msg.name idx)
-                (fmt endpoint_name_local msg.name idx)
-            )
-         )
-        in begin
-          List.iteri (print_data_con Format.format_msg_data_signal_name) msg.sig_types;
-        end
-      in 
-      let print_msg_con_last = fun (msg : message_def) ->
-        let msg = ParamConcretise.concretise_message endpoint_local.channel_class cc.params endpoint_local.channel_params msg in
-        if CodegenPort.message_has_valid_port msg then
-            gen_connect_post (Format.format_msg_valid_signal_name arg_endpoint.name msg.name)
-              (Format.format_msg_valid_signal_name endpoint_name_local msg.name)
-        else ();
-        if CodegenPort.message_has_ack_port msg then
-          gen_connect_post (Format.format_msg_ack_signal_name arg_endpoint.name msg.name)
-            (Format.format_msg_ack_signal_name endpoint_name_local msg.name)
-        else ();
-        let len = List.length msg.sig_types in
-        let print_data_con_last = fun fmt idx _ ->
-          if CodegenPort.message_has_data_port msg idx then(
-          if (is_spawn_comb) then (
-            if (idx == len - 1) then (
-              gen_connect_blank (fmt arg_endpoint.name msg.name idx)
-                (fmt endpoint_name_local msg.name idx)
-            )
-            else (
-              gen_connect_post (fmt arg_endpoint.name msg.name idx)
-                (fmt endpoint_name_local msg.name idx)
-            )
-          )
-          else (gen_connect (fmt arg_endpoint.name msg.name idx)
-            (fmt endpoint_name_local msg.name idx))
-          )
-        in begin
-          List.iteri (print_data_con_last Format.format_msg_data_signal_name) msg.sig_types;
-        end
-      in 
-      let first_msg = List.hd cc.messages in
-      (* remove first msg from the list *)
-      let new_list = List.tl cc.messages in
-
-      List.iter print_msg_con new_list;
-      if is_spawn_comb then
-        print_msg_con_last first_msg
-      else print_msg_con first_msg
-
+        let valid_connections =
+          if CodegenPort.message_has_valid_port msg then
+            [format_connection (Format.format_msg_valid_signal_name arg_endpoint.name msg.name)
+              (Format.format_msg_valid_signal_name endpoint_name_local msg.name)]
+          else []
+        in
+        let ack_connections =
+          if CodegenPort.message_has_ack_port msg then
+            [format_connection (Format.format_msg_ack_signal_name arg_endpoint.name msg.name)
+              (Format.format_msg_ack_signal_name endpoint_name_local msg.name)]
+          else []
+        in
+        let data_connections =
+          List.mapi (fun idx _ ->
+            if CodegenPort.message_has_data_port msg idx then
+              Some (format_connection (Format.format_msg_data_signal_name arg_endpoint.name msg.name idx)
+                (Format.format_msg_data_signal_name endpoint_name_local msg.name idx))
+            else None
+          ) msg.sig_types |> List.filter_map Fun.id
+        in
+        valid_connections @ ack_connections @ data_connections
+      in
+      List.concat_map msg_connections cc.messages
     in
     let param_count = List.fold_left (fun acc p -> match p with Lang.SingleEp _ -> acc + 1 | Lang.IndexedEp (_,idx) -> acc + (Lang.calculate_array_index_concrete_size idx)) 0 spawn.d.params in
     if List.length proc_other.messages.args <> param_count then
       raise (Failure (Printf.sprintf "Invalid number of arguments for spawn of proc %s | Expected %d"  proc_other.name param_count));
-    List.iter2 connect_endpoints proc_other.messages.args (Lang.preprocess_ep_spawn_args spawn.d.params);
+    let clock_connections = if is_spawn_comb then [] else [".clk_i"; ".rst_ni"] in
+    let message_connections =
+      List.map2 endpoint_connections proc_other.messages.args (Lang.preprocess_ep_spawn_args spawn.d.params)
+      |> List.concat
+    in
+    print_connections (clock_connections @ message_connections);
     CodegenPrinter.print_line printer ~lvl_delta_pre:(-1) ");"
   in List.iteri gen_spawn g.spawns
 
@@ -307,7 +267,7 @@ let codegen_proc printer (graphs : EventGraph.event_graph_collection) (g : proc_
     | _ -> true in
   let is_mod_comb = (List.for_all (fun (thread , _) ->
     (thread : EventGraph.event_graph).comb
-  ) g.threads) && (is_not_extern) in
+  ) g.threads) && (is_not_extern) && g.spawns = [] in
 
 
   (* generate ports *)
@@ -396,11 +356,13 @@ let codegen_proc printer (graphs : EventGraph.event_graph_collection) (g : proc_
       codegen_regs printer graphs initEvents;
       if (not is_mod_comb) then CodegenStates.codegen_proc_states printer g;
       
+      let shared_regs = CodegenStates.shared_regs_of_proc g in
       (* Iterate over all threads to print states *)
       List.iter (fun (thread, reset_by) ->
           codegen_post_declare printer graphs thread;
-          CodegenStates.codegen_states printer graphs g thread reset_by;
-      ) g.threads
+          CodegenStates.codegen_states printer graphs g shared_regs thread reset_by;
+      ) g.threads;
+      CodegenStates.codegen_shared_reg_transitions printer g shared_regs
   );
 
   CodegenPrinter.print_line printer ~lvl_delta_pre:(-1) "endmodule"

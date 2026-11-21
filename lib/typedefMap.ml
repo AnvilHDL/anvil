@@ -4,6 +4,9 @@ open Except
 type t = type_def Utils.string_map
 (* Empty map *)
 let empty : t = Utils.StringMap.empty
+(* add or replace a typedef *)
+let add (type_def : type_def) (type_defs : t) : t =
+  Utils.StringMap.add type_def.name type_def type_defs
 let of_list typedef_list =
   List.to_seq typedef_list |> Seq.map (fun (x : type_def) -> (x.name, x))
     |> Utils.StringMap.of_seq

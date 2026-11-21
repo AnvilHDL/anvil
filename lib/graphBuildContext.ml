@@ -137,7 +137,9 @@ module Typing = struct
       (br_side_info, {ctx with current = event_side_root; cg_lt_ctx = context_clear_used ctx.cg_lt_ctx})
 
     let branch g (ctx : t) (br_info : branch_info) : t =
-      {ctx with current = event_create g (`Branch (ctx.current, br_info))}
+      match br_info.branches_val with
+      | [only] -> {ctx with current = only}
+      | _ -> {ctx with current = event_create g (`Branch (ctx.current, br_info))}
 
     (* merge the used state in context *)
     let branch_merge ctx br_ctxs =

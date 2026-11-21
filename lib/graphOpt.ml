@@ -562,7 +562,12 @@ let optimize config for_lt_check ci graph =
 let combinational_codegen (config : Config.compile_config) (graph : event_graph) (_ci : cunit_info) : event_graph = 
   if config.opt_level > 2 then (
     let last_event = List.hd (List.rev graph.events) in
-    if (((List.length graph.events) = 2)  && (List.is_empty last_event.sustained_actions)) then (
+    let loop_delay_is_bare =
+      match List.hd graph.events with
+      | { source = `Seq (_, `Cycles 1); actions = []; sustained_actions = []; _ } -> true
+      | _ -> false
+    in
+    if (((List.length graph.events) = 2) && loop_delay_is_bare && (List.is_empty last_event.sustained_actions)) then (
       let is_notregassign : bool = List.for_all (fun act ->
       match act.d with
         | RegAssign _ -> false
