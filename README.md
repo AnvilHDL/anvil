@@ -10,7 +10,7 @@
 
 **AnvilHDL** is a hardware description language (HDL) that describes digital circuit designs at the register-transfer level (RTL). It introduces a novel type system to guarantee timing safety without abstracting away the low-level control required for efficient hardware design. Designs created in AnvilHDL interface easily with those in SystemVerilog.
 
-> **Note** The motivation and design are discussed and evaluated in depth in our research paper: [**Anvil: A General-Purpose Timing-Safe Hardware Description Language**](https://arxiv.org/abs/2503.19447), which will appear at ASPLOS 2026.
+> **Note** The motivation and design are discussed and evaluated in depth in our research paper: [**Anvil: A General-Purpose Timing-Safe Hardware Description Language**](https://doi.org/10.1145/3779212.3790125), published at ASPLOS 2026.
 
 -----
 
@@ -156,7 +156,7 @@ AnvilHDL is currently **experimental** and under active development. We welcome 
 If you plan to cite AnvilHDL in your work, please use the following reference:
 
 ```text
-J. Z. Yu, A. R. Jha, U. Mathur, T. E. Carlson, and P. Saxena, “Anvil: a general-purpose timing-safe hardware description language,” in Proceedings of the 31st ACM international conference on architectural support for programming languages and operating systems, in ASPLOS ’26. Pittsburgh, PA, USA: Association for Computing Machinery, 2026. [Online]. Available: https://arxiv.org/abs/2503.19447
+J. Z. Yu, A. R. Jha, U. Mathur, T. E. Carlson, and P. Saxena, “Anvil: a general-purpose timing-safe hardware description language,” in Proceedings of the 31st ACM international conference on architectural support for programming languages and operating systems, volume 2, in ASPLOS ’26. Pittsburgh, PA, USA: Association for Computing Machinery, 2026, pp. 110–136. doi: 10.1145/3779212.3790125
 ```
 
 or in BibTeX format:
@@ -167,11 +167,11 @@ or in BibTeX format:
    author={Yu, Jason Zhijingcheng and Jha, Aditya Ranjan and Mathur, Umang and Carlson, Trevor E and Saxena, Prateek},
    year={2026},
    publisher={Association for Computing Machinery},
-   booktitle={Proceedings of the 31st ACM International Conference on Architectural Support for Programming Languages and Operating Systems},
+   booktitle={Proceedings of the 31st ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2},
    series={ASPLOS '26},
    address={Pittsburgh, PA, USA},
-   url={https://arxiv.org/abs/2503.19447},
-   note={To appear. Preprint available at arXiv:2503.19447}
+   pages={110--136},
+   doi={10.1145/3779212.3790125}
 }
 ```
 
