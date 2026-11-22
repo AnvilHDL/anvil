@@ -16,20 +16,25 @@ proc top(){
     reg read_address : byte;
     reg write_address : byte;
     reg write_complete : logic;
+    reg init_complete : logic;
     loop{
         generate (i : 0,255,1) {
             set local_mem[i] := 255-i
-        }
+        };
+        set init_complete := 1
     }
     loop{
-        let key = 8'b11101001;
-        send ri_mem.write_req(address_data_pair::{addr=*write_address;data=(call encrypt(*local_mem[*write_address],key))}) >>
-        cycle 1 >>
-        let _ = recv ri_mem.write_resp >>
-        set write_address := *write_address + 1;
-        if(*write_address == 8'd255){
-            set write_complete := 1
+        if(*init_complete == 1'd1){
+            let key = 8'b11101001;
+            send ri_mem.write_req(address_data_pair::{addr=*write_address;data=(call encrypt(*local_mem[*write_address],key))}) >>
+            cycle 1 >>
+            let _ = recv ri_mem.write_resp >>
+            set write_address := *write_address + 8'd1;
+            if(*write_address == 8'd255){
+                set write_complete := 1
+            }
         }
+        else {cycle 1}
     }
     loop{
         if(*write_complete == 1'd1){
@@ -47,7 +52,7 @@ proc top(){
                 if(*read_address == 8'd255){
                     dfinish
                 };
-                set read_address := *read_address + 1
+                set read_address := *read_address + 8'd1
                 
         }
         else {cycle 1}
@@ -66,6 +71,7 @@ proc top(){
     reg read_address : byte;
     reg write_address : byte;
     reg write_complete : logic;
+    reg init_complete : logic;
 ```
 - This process first creates an instance of the `memory_ch` channel, generating two endpoints: `le_mem` and `ri_mem`, corresponding to the left and right endpoints of the channel.
 - It then instantiates the `memory_safe` process, passing the `le_mem` endpoint to it.
@@ -73,6 +79,7 @@ proc top(){
   - `local_mem` serves as local storage.
   - `read_address` and `write_address` act as iterators for reading and writing.
   - `write_complete` is a flag to indicate when the write operation has finished, allowing the read operation to begin.
+  - `init_complete` is a flag to indicate when `local_mem` has been filled, allowing the write operation to begin.
 
 ## Process Body
 This process contains three concurrent loops, each handling a specific operation.
@@ -84,25 +91,31 @@ This process contains three concurrent loops, each handling a specific operation
     loop{
         generate (i : 0,255,1) {
             set local_mem[i] := 255 - i
-        }
+        };
+        set init_complete := 1
     }
 ```
 - The `generate (id : start, end, step){expr[i]}` construct allows concurrent execution of expressions over a range of values, i.e the semantic of this operation is expr[id];expr[id+1]; expr[id+2]...expr[end]
 - This means all assignments to `local_mem` occur in parallel.
+- `init_complete` is set alongside them, so it reads 1 once `local_mem` holds its values.
 
 **2. Writing to Memory**
 ```rust
     loop{
-        let key = 8'b11101001;
-        send ri_mem.write_req(address_data_pair::{addr=*write_address;data=(call encrypt(*local_mem[*write_address], key))}) >>
-        cycle 1 >>
-        let _ = recv ri_mem.write_resp >>
-        set write_address := *write_address + 1;
-        if (*write_address == 8'd255) {
-            set write_complete := 1
+        if (*init_complete == 1'd1) {
+            let key = 8'b11101001;
+            send ri_mem.write_req(address_data_pair::{addr=*write_address;data=(call encrypt(*local_mem[*write_address], key))}) >>
+            cycle 1 >>
+            let _ = recv ri_mem.write_resp >>
+            set write_address := *write_address + 8'd1;
+            if (*write_address == 8'd255) {
+                set write_complete := 1
+            }
         }
+        else { cycle 1 }
     }
 ```
+- The loop waits until `local_mem` is filled (`init_complete`), so it never encrypts uninitialised values.
 - The loop sends a write request containing an address and encrypted data to the memory process.
 - The `address_data_pair::{addr=*write_address;data=(call encrypt(*local_mem[*write_address], key))}` is used to create a struct of `address_data_pair` type (from previous lesson) with two fields: `addr` and `data`.
 - The `encrypt` function performs a bitwise XOR with the key, then reverses the bit string. 
@@ -145,7 +158,7 @@ func decrypt(data, key) {
             if (*read_address == 8'd255) {
                 dfinish
             }
-            set read_address := *read_address + 1
+            set read_address := *read_address + 8'd1
         }
         else { cycle 1 }
     }

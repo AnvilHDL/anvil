@@ -1,6 +1,0 @@
-proc irrelevant_cycle () {
-    loop {
-        let a = cycle 10;
-        cycle 1
-    }
-}
