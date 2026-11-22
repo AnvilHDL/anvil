@@ -46,9 +46,3 @@ let string_of_code_span ?(indent = 2) ?(trunc = 0) (span: Lang.code_span) =
     with _ -> None
   in
   result
-
-(** Prints out a span of code. See: [string_of_code_span]. *)
-let print_code_span ?(indent = 2) ?(trunc = 0) out span =
-  match string_of_code_span ~indent ~trunc span with
-  | Some s -> output_string out s
-  | None -> ()

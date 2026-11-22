@@ -66,9 +66,17 @@ make MODULE_NAME=memory
 We should receive the following error message:  
 
 ```bash
-Value not live long enough in message send!
-memory.anvil:20:12:
-     20|             send endp.read_resp(*mem[addr])>>
+error: value sent on `endp.read_resp` does not live long enough
+  --> memory.anvil:20:13
+   |
+20 |             send endp.read_resp(*mem[addr])>>
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the value is sent here and must stay valid until the next `endp.read_req` after it is sent
+  --> memory.anvil:19:24
+   |
+19 |             let addr = recv endp.read_req >>
+   |                        ^^^^^^^^^^^^^^^^^^ the value depends on this `recv endp.read_req` and is only valid until 1 cycle after it
+   = help: store the value in a register while it is still valid (`set r := ...`) and send `*r` instead
+   = help: alternatively, declare a longer lifetime for `read_req` in channel class `memory_ch`; it is `@#1` now
 ```  
 
 The checker indicates that `*mem[addr]` cannot be guaranteed to be live until the next `read_req` message is received, which is at least 2 cycles away.  
@@ -114,13 +122,17 @@ make MODULE_NAME=memory_fix_1
 we would see the following error:
 
 ```bash
-Attempted assignment to a borrowed register!
-memory_fix_1.anvil:20:12:
-     20|             set rd_addr := addr;
-       |             ^^^^^^^^^^^^^^^^^^^
-Borrowed at:
-memory_fix_1.anvil:21:37:
-     21|             send endp.read_resp(*mem[*rd_addr])>>
+error: cannot assign to `rd_addr` while a value read from it is still in use
+  --> memory_fix_1.anvil:20:13
+   |
+20 |             set rd_addr := addr;
+   |             ^^^^^^^^^^^^^^^^^^^ `rd_addr` is assigned here
+  --> memory_fix_1.anvil:21:38
+   |
+21 |             send endp.read_resp(*mem[*rd_addr])>>
+   |                                      ^^^^^^^^ `rd_addr` is read here, and must stay unchanged until the next `endp.read_req` after the `send endp.read_resp` on line 21
+   = note: reading `rd_addr` with `*` does not copy it, so `rd_addr` must not change until the value read is no longer needed
+   = help: assign `rd_addr` after the last use of the value, or copy the value into another register first
 ```
 
 
@@ -193,11 +205,13 @@ This is a small demonstration of how Anvil helps ensure your process definition 
 
 When you run the program you will see the following error:
 ```bash
-error: Static sync mode mismatch between endp@read_req and endp@read_req (actual gap = 2 > expected gap 1)!
+error: `endp.read_req` can be more than 1 cycle apart
   --> memory_safe.anvil:21:24
    |
 21 |             let addr = recv endp.read_req >>
-   |                        ^^^^^^^^^^^^^^^^^^
+   |                        ^^^^^^^^^^^^^^^^^^ after this `recv endp.read_req`, the next one can take 2 cycles
+   = note: `endp.read_req` is declared `@#1`, so this side must perform it every cycle without waiting for the other side
+   = help: make every path through the loop reach the next `endp.read_req` in time, or declare it `@dyn` to use a handshake
 ```
 
 This is because the read thread (loop) waits 1 cycle before looping back to the next cycle hence, the gap between `read_req` and `read_res` is 1 cycle and therefore the gap between `read_req` and next `read_req` will be 1+1 = 2 cycles. This violates the contract of the channel. This will be fixed by removing the 1 cycle delay in the read thread at the end.
