@@ -103,7 +103,7 @@ and event_pat = (event * Lang.delay_pat) list
 
 (** The source construct whose completion reaches an event, e.g. a [recv]. *)
 and event_origin = {
-  what : string; (** a noun phrase, e.g. "the `recv ep.req`" *)
+  what : string; (** a noun phrase without an article, e.g. "`recv ep.req`" *)
   where : Lang.code_span;
 }
 

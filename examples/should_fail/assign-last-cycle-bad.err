@@ -1,15 +1,12 @@
-error: Attempted assignment to a borrowed register!
-  --> should_fail/assign-last-cycle-bad.anvil:11:11
+error: cannot assign to `r` while a value read from it is still in use
+  --> should_fail/assign-last-cycle-bad.anvil:12:13
    |
-11 |         } else {
-   |           ^^^^^^
 12 |             set r := 1'b1
-   |             ^^^^^^^^^^^^^
-13 |         }
-   |         ^
-note: Borrowed at:
+   |             ^^^^^^^^^^^^^ `r` is assigned here
   --> should_fail/assign-last-cycle-bad.anvil:8:21
    |
  8 |         send e.req (*r) >>
-   |                     ^^
+   |                     ^^ `r` is read here, and must stay unchanged until 1 cycle after the `send e.req` on line 8
+   = note: reading `r` with `*` does not copy it, so `r` must not change until the value read is no longer needed
+   = help: assign `r` after the last use of the value, or copy the value into another register first
 

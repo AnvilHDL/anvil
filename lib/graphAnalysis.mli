@@ -126,6 +126,12 @@ val imm_preds : EventGraph.event -> EventGraph.event list
 val recurse_unfold :
   Lang.expr_node -> Lang.expr_node -> Lang.expr_node
 
+(** The error for a [let] whose value nothing uses, pointing at the [let]. *)
+val unused_let_message : Lang.code_span -> Except.error_message
+
+(** The error for a loop whose iteration can finish in 0 cycles, pointing at [span]. *)
+val zero_cycle_loop_message : Lang.code_span -> Except.error_message
+
 (** Unroll [expr_node] the minimum number of times required so that the body
     latency exceeds the recursion gap, as computed by a lightweight dry-run of
     [construct_graphIR] on a temporary graph.  [construct_graphIR] is the IR-building

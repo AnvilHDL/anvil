@@ -1,11 +1,16 @@
-error: Attempted assignment to a borrowed register!
+error: cannot assign to `r` while a value read from it is still in use
  --> should_fail/bad-borrow-binding.anvil:6:9
   |
 6 |         set r := 1'b0 >>
-  |         ^^^^^^^^^^^^^
-note: Borrowed at:
+  |         ^^^^^^^^^^^^^ `r` is assigned here
  --> should_fail/bad-borrow-binding.anvil:5:18
   |
 5 |         let rv = *r;
-  |                  ^^
+  |                  ^^ `r` is read here
+ --> should_fail/bad-borrow-binding.anvil:7:9
+  |
+7 |         dprint "Value = %d" (rv)
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^ the value read is still used here
+  = note: reading `r` with `*` does not copy it, so `r` must not change until the value read is no longer needed
+  = help: assign `r` after the last use of the value, or copy the value into another register first
 

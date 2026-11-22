@@ -17,6 +17,14 @@ let unwrap_or_err err_msg err_span opt =
 let set_origin (ev : event) what span =
   if Option.is_none ev.origin then ev.origin <- Some {what; where = span}
 
+(* Warning for reading part of [reg] at a position known only at run time. *)
+let dynamic_index_warning reg span =
+  Except.warn [
+    Text (Printf.sprintf "`%s` is read at a position known only at run time" reg);
+    Label (None, span, "the index is not a constant");
+    Note (Printf.sprintf "the compiler cannot tell which part of `%s` is read, so all of `%s` counts as in use while the value is needed" reg reg)
+  ]
+
 let register_names (graph : event_graph) =
   Utils.StringMap.bindings graph.regs |> List.map (fun (name, _) -> (name, "register"))
 
@@ -358,7 +366,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     ctx.current.actions <- (RegAssign (lvi, td.ld) |> tag_with_span e.span)::ctx.current.actions;
     AstAnnotator.attach_event e ctx.current None (Some [DelayConst 1]);
     let data = Typing.cycles_data graph 1 ctx.current in
-    set_origin data.ld.lt.live (Printf.sprintf "the assignment to `%s`" (string_of_lvalue lval)) e.span;
+    set_origin data.ld.lt.live (Printf.sprintf "assignment to `%s`" (string_of_lvalue lval)) e.span;
     data
   | Call (id, arg_list) ->
       let func = match List.find_opt (fun (f: Lang.func_def) -> f.name = id) ci.func_defs with
@@ -440,8 +448,8 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     graph.wires <- wires';
     Typing.derived_data (Some w) td.ld
   | Tuple [] -> Typing.const_data graph None (unit_dtype) ctx.current
-  | Let (_idents, _, e) ->
-    raise (Except.TypeError [Text "Let expressions cannot be unused!"; Except.codespan_local e.span]);
+  | Let _ ->
+    raise (Except.TypeError (GraphAnalysis.unused_let_message e.span));
     Typing.const_data graph None (unit_dtype) ctx.current (* dummy return *)
   | Join (e1, e2) ->
     (
@@ -470,10 +478,11 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
           let binding = Typing.context_lookup ctx'.cg_lt_ctx ident |> Option.get in
           (* no need to wait if the value is current *)
           if td1.ld.lt.live.id <> ctx.current.id && not binding.binding_used then (
-            (* raise (event_graph_error_default "Value is potentially not awaited!" e1.span) *)
             Except.warn [
-              Text (Printf.sprintf "Value bound to %s is potentially not awaited!" ident);
-              Except.codespan_local e1.span
+              Text (Printf.sprintf "the value bound to `%s` may never be waited for" ident);
+              Label (None, e1.span, "this value takes time to compute");
+              Note "after `;` the code continues without waiting for the value, so a path that does not use it can end before the value is ready";
+              Help "use `>>` instead of `;` to wait for the value, or use it on every path"
             ]
           );
           td
@@ -539,7 +548,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     let n = cycle_count ci ctx n_src e.span in
     let data = Typing.cycles_data graph n ctx.current in
     let n_s = match n_src with ParamEnv.Concrete v -> string_of_int v | ParamEnv.Param p -> p in
-    set_origin data.ld.lt.live (Printf.sprintf "the `cycle %s`" n_s) e.span;
+    set_origin data.ld.lt.live (Printf.sprintf "`cycle %s`" n_s) e.span;
     AstAnnotator.attach_event e ctx.current None (Some [DelayConst n]);
     data
   | IfExpr (e1, e2, e3) ->
@@ -567,7 +576,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     AstAnnotator.attach_event e ctx.current None None;
 
     let ctx_br = BuildContext.branch graph ctx' branch_info in
-    set_origin ctx_br.current "the end of the `if`" e.span;
+    set_origin ctx_br.current "end of the `if`" e.span;
     br_side_true.branch_event <- Some ctx_br.current;
     br_side_false.branch_event <- Some ctx_br.current;
     let lt = {live = ctx_br.current; (* branch event is reached when either split event is reached *)
@@ -613,7 +622,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
 
     let (br_side_true, ctx_true) = BuildContext.branch_side graph ctx branch_info 0 in
     set_origin ctx_true.current
-      (Printf.sprintf "the `send %s.%s` in the `try`" send_pack.send_msg_spec.endpoint send_pack.send_msg_spec.msg) e.span;
+      (Printf.sprintf "`send %s.%s` in the `try`" send_pack.send_msg_spec.endpoint send_pack.send_msg_spec.msg) e.span;
     let td1 = construct_graphIR graph ci ctx_true e1 in
     let (br_side_false, ctx_false) = BuildContext.branch_side graph ctx branch_info 1 in
     let td2 = construct_graphIR graph ci ctx_false e2 in
@@ -634,7 +643,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     );
 
     let ctx_br = BuildContext.branch graph ctx branch_info in
-    set_origin ctx_br.current "the end of the `try`" e.span;
+    set_origin ctx_br.current "end of the `try`" e.span;
     br_side_true.branch_event <- Some ctx_br.current;
     br_side_false.branch_event <- Some ctx_br.current;
     let lt = {live = ctx_br.current; (* branch event is reached when either split event is reached *)
@@ -673,7 +682,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
 
     let (br_side_true, ctx_true_no_binding) = BuildContext.branch_side graph ctx branch_info 0 in
     set_origin ctx_true_no_binding.current
-      (Printf.sprintf "the `recv %s.%s` in the `try`" recv_pack.recv_msg_spec.endpoint recv_pack.recv_msg_spec.msg) e.span;
+      (Printf.sprintf "`recv %s.%s` in the `try`" recv_pack.recv_msg_spec.endpoint recv_pack.recv_msg_spec.msg) e.span;
 
     (* message *)
     let msg = message_of graph ci recv_pack.recv_msg_spec e.span in
@@ -703,7 +712,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     AstAnnotator.attach_def_from_top_level_message e msg recv_pack.recv_msg_spec graph;
 
     let ctx_br = BuildContext.branch graph ctx branch_info in
-    set_origin ctx_br.current "the end of the `try`" e.span;
+    set_origin ctx_br.current "end of the `try`" e.span;
     br_side_true.branch_event <- Some ctx_br.current;
     br_side_false.branch_event <- Some ctx_br.current;
     let lt = {live = ctx_br.current; (* branch event is reached when either split event is reached *)
@@ -771,7 +780,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
 
         BuildContext.branch_merge ctx' @@ ctx_default::(List.map (fun (ctx, _, _) -> ctx) branches);
         let ctx_br = BuildContext.branch graph ctx' branch_info in
-        set_origin ctx_br.current "the end of the `match`" e.span;
+        set_origin ctx_br.current "end of the `match`" e.span;
         List.iter
           (fun (_, br_side, _) ->
             br_side.branch_event <- Some ctx_br.current
@@ -857,13 +866,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
             inner_dtype idx |> (function Some x -> x | None -> bad_index ci inner_dtype idx e.span) in
           let total_offset_le = MaybeConst.add (binop_td_const e.span Add) (_binop_td_td e.span Add) offset_le inner_le_nd in
           let off_i = MaybeConst.map_off total_offset_le in
-          let (off, le') = if off_i < 0 then (
-            Except.warn [
-              Text (Printf.sprintf "The offset is not a constant value for %s, borrowing full range" reg_ident);
-              Except.codespan_local e.span
-            ];
-            (0, len)
-          ) else (off_i, len) in
+          let (off, le') = if off_i < 0 then (dynamic_index_warning reg_ident e.span; (0, len)) else (off_i, len) in
           let (wire', w') = WireCollection.add_slice graph.thread_id w (MaybeConst.map (fun td -> unwrap_or_err "Invalid indexing in lvalue" e.span td.ld.w) total_offset_le) le' graph.wires in
           graph.wires <- wire';
           let new_td = match total_offset_le with
@@ -887,13 +890,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
           (* total offset = inner offset + field offset *)
           let total_offset_le = MaybeConst.add_const field_offset_le (binop_td_const e.span Add) inner_le_nd in
           let off_i = MaybeConst.map_off total_offset_le in
-          let (off, le') = if off_i < 0 then (
-            Except.warn [
-              Text (Printf.sprintf "The offset is not a constant value for indirection %s, borrowing full range" field_id.d);
-              Except.codespan_local e.span
-            ];
-            (0, len)
-          ) else (off_i, len) in
+          let (off, le') = if off_i < 0 then (dynamic_index_warning reg_ident e.span; (0, len)) else (off_i, len) in
           let (wi', new_w) = WireCollection.add_slice graph.thread_id w (MaybeConst.map (fun td -> unwrap_or_err "Invalid indexing in indirection" e.span td.ld.w) total_offset_le) le' graph.wires in
           graph.wires <- wi';
           let new_td = match total_offset_le with
@@ -940,7 +937,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     check_dtype err_string (Some msg_dtype) td.ld.dtype e.span ci.file_name ci.weak_typecasts ci.typedefs ci.macro_defs;
     let ntd = Typing.send_msg_data graph send_pack.send_msg_spec ctx.current in
     set_origin ntd.ld.lt.live
-      (Printf.sprintf "the `send %s.%s`" send_pack.send_msg_spec.endpoint send_pack.send_msg_spec.msg) e.span;
+      (Printf.sprintf "`send %s.%s`" send_pack.send_msg_spec.endpoint send_pack.send_msg_spec.msg) e.span;
     ctx.current.sustained_actions <-
       ({
         until = ntd.ld.lt.live;
@@ -959,7 +956,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     graph.wires <- wires';
     let ntd = Typing.recv_msg_data graph w recv_pack.recv_msg_spec msg ctx.current in
     set_origin ntd.ld.lt.live
-      (Printf.sprintf "the `recv %s.%s`" recv_pack.recv_msg_spec.endpoint recv_pack.recv_msg_spec.msg) e.span;
+      (Printf.sprintf "`recv %s.%s`" recv_pack.recv_msg_spec.endpoint recv_pack.recv_msg_spec.msg) e.span;
     ctx.current.sustained_actions <-
       ({until = ntd.ld.lt.live; ty = Recv recv_pack.recv_msg_spec} |> tag_with_span e.span)::ctx.current.sustained_actions;
     AstAnnotator.attach_event e ctx.current (Some ntd.ld.lt.live) None;

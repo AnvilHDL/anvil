@@ -1,14 +1,16 @@
-warning: The offset is not a constant value for mem, borrowing full range
+warning: `mem` is read at a position known only at run time
   --> should_fail/loop-borrow.anvil:15:28
    |
 15 |             set rd_addr := *mem[addr] >>
-   |                            ^^^^^^^^^^
+   |                            ^^^^^^^^^^ the index is not a constant
+   = note: the compiler cannot tell which part of `mem` is read, so all of `mem` counts as in use while the value is needed
 
-warning: The offset is not a constant value for mem, borrowing full range
+warning: `mem` is read at a position known only at run time
   --> should_fail/loop-borrow.anvil:16:33
    |
 16 |             send endp.read_resp(*mem[*rd_addr])>>
-   |                                 ^^^^^^^^^^^^^^
+   |                                 ^^^^^^^^^^^^^^ the index is not a constant
+   = note: the compiler cannot tell which part of `mem` is read, so all of `mem` counts as in use while the value is needed
 
 warning: mismatched types in message `endp.read_resp`
   --> should_fail/loop-borrow.anvil:16:13
@@ -31,9 +33,12 @@ warning: mismatched types in message `endp.write_resp`
    |             ^^^^^^^^^^^^^^^^^^^^^^^ expected `logic[1]`, found `logic`
    = note: both types are 1 bit wide, so the value is converted bit for bit
 
-error: Static sync mode mismatch between endp@read_req and endp@read_req (actual gap = 1048576 > expected gap 2)!
+error: `endp.read_req` can be more than 2 cycles apart
   --> should_fail/loop-borrow.anvil:14:24
    |
 14 |             let addr = recv endp.read_req >>
-   |                        ^^^^^^^^^^^^^^^^^^
+   |                        ^^^^^^^^^^^^^^^^^^ after this `recv endp.read_req`, the next one can take an unbounded number of cycles
+   = note: `endp.read_req` is declared `@#2`, so this side must perform it every 2 cycles without waiting for the other side
+   = note: a path through the loop waits for another message, which can take any number of cycles
+   = help: make every path through the loop reach the next `endp.read_req` in time, or declare it `@dyn` to use a handshake
 

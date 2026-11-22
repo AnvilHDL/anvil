@@ -3,11 +3,13 @@ open EventGraph
 open GraphAnalysis
 open ErrorCollector
 
-(* Lifetime formatted string for debugging *)
-let _string_of_lt (lt : lifetime) : string =
-  String.concat "" (List.map (fun s ->
-      Printf.sprintf "%d |> %s | " (fst s).id (string_of_delay_pat (snd s))
-    ) lt.dead)
+let quote_msg (m : message_specifier) = Printf.sprintf "`%s.%s`" m.endpoint m.msg
+
+(* "`send ep.req`" or "`recv ep.req`" *)
+let describe_msg_use (sa : sustained_action) =
+  match sa.ty with
+  | Send (m, _) -> Printf.sprintf "`send %s.%s`" m.endpoint m.msg
+  | Recv m -> Printf.sprintf "`recv %s.%s`" m.endpoint m.msg
 
 (** Check if the uses of endpoints and registers follow defined order. *)
 let check_linear (config : Config.compile_config) lookup_message (g : event_graph) =
@@ -68,13 +70,21 @@ let check_linear (config : Config.compile_config) lookup_message (g : event_grap
       List.iter (fun (ev', range', span') ->
         if (EventGraphOps.subreg_ranges_possibly_intersect range range') &&
            (events_get_order g.events lookup_message ev ev' |> is_strict_ordered |> not) then
-            raise (LifetimeCheckError
-                [
-                  Text "Non-linearizable register assignment!";
-                  Except.codespan_local span;
-                  Text "Conflicting with:";
-                  Except.codespan_local span';
-                ])
+            let reg = range.subreg_name in
+            let open Except in
+            raise (LifetimeCheckError (
+              if span = span' then [
+                Text (Printf.sprintf "an assignment to `%s` can overlap with itself in the next loop iteration" reg);
+                Label (None, span, "this assignment may still be in progress when the next iteration starts it again");
+                Note "assignments to the same register must happen one after another";
+                Help "make the loop iteration wait for the assignment with `>>`"
+              ] else [
+                Text (Printf.sprintf "`%s` may be assigned twice at the same time" reg);
+                Label (None, span, Printf.sprintf "this assignment to `%s`" reg);
+                Label (None, span', "may happen at the same time as this one");
+                Note "assignments to the same register must happen one after another";
+                Help "order them with `>>`, or put them in different branches of an `if`"
+              ]))
       ) remaining;
       check_reg_violation remaining
     | [] -> ()
@@ -82,7 +92,7 @@ let check_linear (config : Config.compile_config) lookup_message (g : event_grap
   check_reg_violation !reg_ops;
 
   (* check for violations of linearity for message uses *)
-  Hashtbl.iter (fun _msg_str li ->
+  Hashtbl.iter (fun msg_str li ->
     let rec check_msg_violation = function
       | (ev, sa_span)::li' ->
         List.iter (fun (ev', sa_span') ->
@@ -101,14 +111,22 @@ let check_linear (config : Config.compile_config) lookup_message (g : event_grap
             | 0, _ | _, 0 -> true
             | _ -> false
           in
-          if not check_ok then
-            raise (LifetimeCheckError
-                  [
-                    Text "Non-linearizable message use!";
-                    Except.codespan_local sa_span.span;
-                    Text "Conflicting with:";
-                    Except.codespan_local sa_span'.span;
-                  ])
+          if not check_ok then (
+            let open Except in
+            raise (LifetimeCheckError (
+              if sa_span.span = sa_span'.span then [
+                Text (Printf.sprintf "%s can overlap with itself in the next loop iteration" (describe_msg_use sa_span.d));
+                Label (None, sa_span.span, "this may not have finished when the next iteration starts it again");
+                Note "uses of the same message must happen one after another";
+                Help "wait for it with `>>`, so that the loop iteration ends only after it completes"
+              ] else [
+                Text (Printf.sprintf "`%s` may be used twice at the same time" msg_str);
+                Label (None, sa_span.span, "this " ^ describe_msg_use sa_span.d);
+                Label (None, sa_span'.span, "may overlap with this " ^ describe_msg_use sa_span'.d);
+                Note "uses of the same message must happen one after another";
+                Help "order them with `>>`"
+              ]))
+          )
         ) li';
         check_msg_violation li'
       | [] -> ()
@@ -130,7 +148,10 @@ let event_pat_rel2 events lookup_message ev_pat1 ev_pat2 =
       | true -> (g, offset)
 
       | false -> match ((lookup_message m): message_def option) with
-        | Some def -> raise_fatal (LifetimeCheckError [Text "Negative Offset Unsupported right now"; Except.codespan_local def.span])
+        | Some def -> raise_fatal (LifetimeCheckError [
+          Text "a message lifetime with a negative offset is not supported yet";
+          Except.Label (code_span_file_name def.span, def.span, "this message is declared with a negative offset")
+        ])
         | None -> raise_fatal (Except.internal_error (Printf.sprintf "Message_def_not_found %s" (string_of_msg_spec m)))
   in
   match ev_pat1 with
@@ -203,6 +224,69 @@ let lifetime_disjoint events lookup_message lt1 lt2 =
 (* An internal identifier for a message specifier. *)
 let msg_ident msg = Printf.sprintf "%s@%s" msg.endpoint msg.msg
 
+let msg_spec_of_ident ident =
+  match String.split_on_char '@' ident with
+  | endpoint :: rest -> {endpoint; msg = String.concat "@" rest}
+  | [] -> {endpoint = ident; msg = ""}
+
+(* A message lifetime as written in a channel class, e.g. "@#1" or "@req". *)
+let string_of_chan_lifetime (pat : delay_pat_chan_local) =
+  match pat with
+  | `Cycles n -> Printf.sprintf "@#%d" n
+  | `Eternal -> "eternal"
+  | `Message_with_offset (m, 0, _) -> "@" ^ m
+  | `Message_with_offset (m, o, plus) -> Printf.sprintf "@#%s%s%d" m (if plus then "+" else "-") o
+
+let span_contains (outer : code_span) (inner : code_span) =
+  outer.st.pos_cnum <= inner.st.pos_cnum && inner.ed.pos_cnum <= outer.ed.pos_cnum
+
+(* Events joined into [ev] that have not been reached by [at]. *)
+let pending_events events lookup_message (ev : event) (at : event) =
+  let rec leaves (e : event) =
+    match e.origin, e.source with
+    | None, `Later (a, b) -> leaves a @ leaves b
+    | _ -> [e]
+  in
+  leaves ev
+  |> List.sort_uniq (fun (a : event) (b : event) -> compare a.id b.id)
+  |> List.filter (fun e -> not (event_pat_rel2 events lookup_message [(e, `Cycles 0)] [(at, `Cycles 0)]))
+
+(* Error for a value whose lifetime does not cover the lifetime [needed] by its use. *)
+let lifetime_error events lookup_message ~what ~use_span ~use_label ~(needed : lifetime) ~(value : lifetime) ~help =
+  let open Except in
+  if not (event_pat_rel2 events lookup_message [(value.live, `Cycles 0)] [(needed.live, `Cycles 0)]) then (
+    let pending = pending_events events lookup_message value.live needed.live in
+    let labels = List.filter_map (fun (e : event) ->
+        Option.map (fun (o : event_origin) ->
+          Label (None, o.where, Printf.sprintf "the value is only available after this %s" o.what)) e.origin
+      ) pending in
+    [
+      Text (Printf.sprintf "%s is used before it is available" what);
+      Label (None, use_span, "the value is used here")
+    ]
+    @ (if labels = [] then
+         [Note (Printf.sprintf "the value is only available from %s" (EventGraphOps.describe_event value.live))]
+       else labels)
+    @ [Help "wait for the value with `>>` before using it, e.g. `let x = ... >> dprint \"%d\" (x)`"]
+  ) else (
+    let limiting = List.filter (fun d -> not (event_pat_rel2 events lookup_message needed.dead [d])) value.dead in
+    let sources = List.map (fun (ev, pat) ->
+        match ev.origin with
+        | Some o ->
+          Label (None, o.where, Printf.sprintf "the value depends on this %s and is only valid until %s"
+            o.what (EventGraphOps.describe_pat_after pat "it"))
+        | None ->
+          Note (Printf.sprintf "the value is only valid until %s"
+            (EventGraphOps.describe_pat_after pat (EventGraphOps.describe_event ev)))
+      ) limiting in
+    [
+      Text (Printf.sprintf "%s does not live long enough" what);
+      Label (None, use_span, use_label)
+    ]
+    @ sources
+    @ help limiting
+  )
+
 module StringHashtbl = Hashtbl.Make(String)
 
 let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event_graph) =
@@ -221,21 +305,16 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
   let last_ev = List.hd g.events in (* assuming reverse topo order *)
   let dist = event_min_distance g.events root_ev root_ev in
   if IntHashtbl.find dist last_ev.id = 0 then
-    raise (LifetimeCheckError
-      [
-        Text "All paths must take at least one cycle to complete!";
-        Except.codespan_local g.thread_codespan
-      ]
-    );
+    raise (LifetimeCheckError (GraphAnalysis.zero_cycle_loop_message g.thread_codespan));
 
   check_linear config lookup_message g;
 
-  let reg_borrows = StringHashtbl.create 8 in (* regname -> (lifetime, range)*)
+  let reg_borrows = StringHashtbl.create 8 in (* regname -> (lifetime, range, use span)*)
   let msg_borrows = StringHashtbl.create 8 in
   (* check lifetime for each use of a wire *)
   let intersects_borrowed_reg s lt range =
     let borrows = StringHashtbl.find_opt reg_borrows s |> Option.value ~default:[] in
-    List.filter (fun (lt_tagged', range') ->
+    List.filter (fun (lt_tagged', range', _) ->
       (EventGraphOps.subreg_ranges_possibly_intersect range range') && (lifetime_disjoint g.events lookup_message lt lt_tagged'.d |> not))
       borrows
   in
@@ -246,9 +325,9 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
     if intersects = [] then StringHashtbl.replace msg_borrows s (lt_tagged::borrows);
     intersects
   in
-  let borrow_add_reg s lt_tagged range =
+  let borrow_add_reg s lt_tagged range use_span =
     let borrows = StringHashtbl.find_opt reg_borrows s |> Option.value ~default:[] in
-    StringHashtbl.replace reg_borrows s ((lt_tagged, range)::borrows)
+    StringHashtbl.replace reg_borrows s ((lt_tagged, range, use_span)::borrows)
   in
   let visit_actions a_visitor sa_visitor =
     List.iter (fun ev ->
@@ -270,23 +349,23 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
       match a.d with
       | RegAssign (lval_info, td) ->
         (* `Cycles 0 rather than 1 because in the last cycle it is okay to update the register *)
-        td_to_live_until := (td, (ev, `Cycles 0))::!td_to_live_until;
+        td_to_live_until := (td, (ev, `Cycles 0), a.span)::!td_to_live_until;
         let (range_st, _) = lval_info.lval_range.subreg_range_interval in
         (
           match range_st with
           | Const _ -> ()
           | NonConst range_st_td ->
-            td_to_live_until := (range_st_td, (ev, `Cycles 0))::!td_to_live_until
+            td_to_live_until := (range_st_td, (ev, `Cycles 0), a.span)::!td_to_live_until
         )
       | DebugPrint (_, tds) ->
-        let ns = List.map (fun td -> (td, (ev, `Cycles 0))) tds in
+        let ns = List.map (fun td -> (td, (ev, `Cycles 0), a.span)) tds in
         td_to_live_until := Utils.list_unordered_join ns !td_to_live_until
       | DebugFinish -> ()
       | ImmediateSend (msg, td) ->
         let msg_d = lookup_message msg |> Option.get in
         let stype = List.hd msg_d.sig_types in
         let e_dpat = delay_pat_globalise msg.endpoint stype.lifetime.e |> delay_pat_reduce_cycles 1 in
-        td_to_live_until := (td, (ev, e_dpat))::!td_to_live_until
+        td_to_live_until := (td, (ev, e_dpat), a.span)::!td_to_live_until
       | ImmediateRecv _ -> ()
     )
     (fun _ev sa ->
@@ -295,83 +374,126 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
         let msg_d = lookup_message msg |> Option.get in
         let stype = List.hd msg_d.sig_types in
         let e_dpat = delay_pat_globalise msg.endpoint stype.lifetime.e |> delay_pat_reduce_cycles 1 in
-        td_to_live_until := (td, (sa.d.until, e_dpat))::!td_to_live_until
+        td_to_live_until := (td, (sa.d.until, e_dpat), sa.span)::!td_to_live_until
       | Recv _ -> ()
     )
     g.events;
-  List.iter (fun (td, dead) ->
+  List.iter (fun (td, dead, use_span) ->
     List.iter (fun borrow ->
       let lt_tagged = tag_with_span borrow.borrow_source_span {live = borrow.borrow_start; dead = [dead]} in
-      borrow_add_reg borrow.borrow_range.subreg_name lt_tagged borrow.borrow_range
+      borrow_add_reg borrow.borrow_range.subreg_name lt_tagged borrow.borrow_range use_span
     ) td.reg_borrows
   ) !td_to_live_until;
+  let open Except in
+  let channel_class_of (m : message_specifier) =
+    MessageCollection.lookup_endpoint g.messages m.endpoint
+    |> Option.map (fun (ep : endpoint_def) -> ep.channel_class) |> Option.value ~default:""
+  in
+  let recv_lifetime_help limiting =
+    List.filter_map (fun ((ev : event), _) ->
+      match ev.source with
+      | `Seq (_, `Recv m) ->
+        lookup_message m |> Option.map (fun (md : message_def) ->
+          Help (Printf.sprintf "alternatively, declare a longer lifetime for `%s` in channel class `%s`; it is `%s` now"
+            m.msg (channel_class_of m) (string_of_chan_lifetime (List.hd md.sig_types).lifetime.e)))
+      | _ -> None
+    ) limiting
+    |> List.sort_uniq compare
+  in
+  let value_error ~what ~use_span ~use_label ~needed ~value ~fix =
+    raise (LifetimeCheckError (lifetime_error g.events lookup_message ~what ~use_span ~use_label ~needed ~value
+      ~help:(fun limiting -> Help fix :: recv_lifetime_help limiting)))
+  in
   (* check register and message borrows *)
   let check_send msg td ev ev_until span =
-    let msg_d = MessageCollection.lookup_message g.messages msg ci.channel_classes |> Option.get in
+    let msg_d = lookup_message msg |> Option.get in
     let stype = List.hd msg_d.sig_types in
     let e_dpat = delay_pat_globalise msg.endpoint stype.lifetime.e in
     let lt = {live = ev; dead = [(ev_until, e_dpat)]} in
+    let msg_s = quote_msg msg in
     (
       match intersects_borrowed_msg_and_add (string_of_msg_spec msg) (tag_with_span span lt) with
       | lt_intersect_tagged::_ ->
-        raise (LifetimeCheckError
-          [
-            Text "Potentially conflicting message sending!";
-            Except.codespan_local span;
-            Text "Conflicting with:";
-            Except.codespan_local lt_intersect_tagged.span
+        let previous =
+          if lt_intersect_tagged.span = span then
+            [Label (None, span, "this `send` can happen again in the next loop iteration before the value it sent expires")]
+          else [
+            Label (None, span, "this `send` ...");
+            Label (None, lt_intersect_tagged.span, "... can happen before the value sent here expires")
           ]
-        )
+        in
+        raise (LifetimeCheckError (
+          Text (Printf.sprintf "%s may be sent again while the previous value is still valid" msg_s)
+          :: previous
+          @ [
+            Note (Printf.sprintf "a value sent on %s stays valid until %s (`%s` in channel class `%s`)"
+              msg_s (EventGraphOps.describe_pat_after e_dpat "it is sent") (string_of_chan_lifetime stype.lifetime.e) (channel_class_of msg));
+            Help "send again only after the previous value has expired"
+          ]))
       | [] -> ()
     );
     if lifetime_in_range g.events lookup_message lt td.lt |> not then
-      raise (LifetimeCheckError [
-        Text "Value does not live long enough in send!";
-        Except.codespan_local span
-      ])
+      value_error ~what:("value sent on " ^ msg_s) ~use_span:span
+        ~use_label:(Printf.sprintf "the value is sent here and must stay valid until %s" (EventGraphOps.describe_pat_after e_dpat "it is sent"))
+        ~needed:lt ~value:td.lt
+        ~fix:"store the value in a register while it is still valid (`set r := ...`) and send `*r` instead"
   in
   visit_actions
     (fun ev a ->
       match a.d with
       | RegAssign (lval_info, td) ->
         let lt = EventGraphOps.lifetime_immediate ev in
+        let reg = lval_info.lval_range.subreg_name in
         (
-          match intersects_borrowed_reg lval_info.lval_range.subreg_name lt lval_info.lval_range with
+          match intersects_borrowed_reg reg lt lval_info.lval_range with
           | [] -> ()
-          | (lt_tagged, _)::_ ->
-              let open Except in
-              raise (LifetimeCheckError [
-                Text "Attempted assignment to a borrowed register!";
-                codespan_local a.span;
-                Text "Borrowed at:";
-                codespan_local lt_tagged.span
-              ] )
+          | (lt_tagged, _, use_span)::_ ->
+            let until = match List.hd lt_tagged.d.dead with
+              | (_, `Cycles 0) -> ""
+              | (ev, pat) -> Printf.sprintf ", and must stay unchanged until %s"
+                (EventGraphOps.describe_pat_after pat (EventGraphOps.describe_event ev))
+            in
+            let use_labels =
+              if span_contains use_span lt_tagged.span then
+                [Label (None, lt_tagged.span, Printf.sprintf "`%s` is read here%s" reg until)]
+              else [
+                Label (None, lt_tagged.span, Printf.sprintf "`%s` is read here" reg);
+                Label (None, use_span, Printf.sprintf "the value read is still used here%s" until)
+              ]
+            in
+            raise (LifetimeCheckError (
+              [
+                Text (Printf.sprintf "cannot assign to `%s` while a value read from it is still in use" reg);
+                Label (None, a.span, Printf.sprintf "`%s` is assigned here" reg)
+              ]
+              @ use_labels
+              @ [
+                Note (Printf.sprintf "reading `%s` with `*` does not copy it, so `%s` must not change until the value read is no longer needed" reg reg);
+                Help (Printf.sprintf "assign `%s` after the last use of the value, or copy the value into another register first" reg)
+              ]))
         );
         if lifetime_in_range g.events lookup_message lt td.lt |> not then
-          raise (LifetimeCheckError [
-                    Text "Value does not live long enough in reg assignment!";
-                    Except.codespan_local a.span
-                ])
-        else ();
+          value_error ~what:(Printf.sprintf "value assigned to `%s`" reg) ~use_span:a.span
+            ~use_label:"the value is assigned here" ~needed:lt ~value:td.lt
+            ~fix:"assign the value earlier, while it is still valid";
         (
           match fst lval_info.lval_range.subreg_range_interval with
           | Const _ -> ()
           | NonConst range_st_td ->
             if lifetime_in_range g.events lookup_message lt range_st_td.lt |> not then
-              raise (LifetimeCheckError [
-                  Text "Lvalue index does not live long enough!";
-                  Except.codespan_local a.span
-                ])
+              value_error ~what:(Printf.sprintf "index into `%s`" reg) ~use_span:a.span
+                ~use_label:"the index is used here" ~needed:lt ~value:range_st_td.lt
+                ~fix:"use the index while it is still valid, or store it in a register first"
         )
       | DebugPrint (_, tds) ->
-        List.iter (fun td ->
-          if lifetime_in_range g.events lookup_message (EventGraphOps.lifetime_immediate ev) td.lt |> not then
-            raise (LifetimeCheckError
-              [
-                Text "Value does not live long enough in debug print!";
-                Except.codespan_local a.span
-              ])
-          else ()
+        let n = List.length tds in
+        List.iteri (fun i td ->
+          let lt = EventGraphOps.lifetime_immediate ev in
+          if lifetime_in_range g.events lookup_message lt td.lt |> not then
+            value_error
+              ~what:(if n > 1 then Printf.sprintf "printed value %d of %d" (i + 1) n else "printed value")
+              ~use_span:a.span ~use_label:"the value is printed here" ~needed:lt ~value:td.lt
+              ~fix:"print the value earlier, while it is still valid"
         ) tds
       | DebugFinish -> ()
       | ImmediateSend (msg, td) ->
@@ -392,7 +514,7 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
     which maps an internal message identifier to the number of cycles in delay *)
   let msg_to_check = ref Utils.StringMap.empty in
   let get_msg_gap is_send msg =
-    let msg_def = MessageCollection.lookup_message g.messages msg ci.channel_classes |> Option.get in
+    let msg_def = lookup_message msg |> Option.get in
     let (sync_mode, other_sync_mode) = if is_send then
       (msg_def.send_sync, msg_def.recv_sync)
     else
@@ -439,9 +561,8 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
   (* Check per message *)
   let check_msg_sync_mode msg (init_offset, relative_msg, gap, self_check, other_check) =
     (* To Do: Generalize Check if this is a one-cycle message with Static #1 #1 sync mode (combinational) *)
-    let msg_spec = {endpoint = String.split_on_char '@' msg |> List.hd; 
-                    msg = String.split_on_char '@' msg |> List.tl |> String.concat "@"} in
-    let msg_def_opt = MessageCollection.lookup_message g.messages msg_spec ci.channel_classes in
+    let msg_spec = msg_spec_of_ident msg in
+    let msg_def_opt = lookup_message msg_spec in
     let is_one_cycle_static_1_1 = match msg_def_opt with
       | Some msg_def ->
         (match msg_def.send_sync, msg_def.recv_sync with
@@ -453,6 +574,18 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
           | _ -> false)
         | _ -> false)
       | None -> false
+    in
+    let rel_spec = msg_spec_of_ident relative_msg in
+    let declared =
+      if msg = relative_msg then
+        if init_offset = gap - 1 then Printf.sprintf "@#%d" gap else Printf.sprintf "@#%d~%d" init_offset gap
+      else if gap = 0 then Printf.sprintf "@#%s" rel_spec.msg
+      else Printf.sprintf "@#%s+%d" rel_spec.msg gap
+    in
+    let every n = if n = 1 then "every cycle" else "every " ^ EventGraphOps.cycles_phrase n in
+    let at_most n =
+      if n >= GraphAnalysis.event_distance_max then "an unbounded number of cycles"
+      else EventGraphOps.cycles_phrase n
     in
     (* if msg is an action at this event, obtain until *)
     if config.verbose then (
@@ -513,12 +646,31 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
                   Array.iteri (fun idx sl -> Printf.eprintf "Sl %d = %d\n" idx sl) slacks;
                   Array.iteri (fun idx sl -> Printf.eprintf "Mw %d = %d\n" idx sl) min_weights
                 );
-                if min_weights.(sa.d.until.id) > gap && not is_one_cycle_static_1_1 then (
-                  let error_msg = Printf.sprintf "Static sync mode mismatch between %s and %s (actual gap = %d > expected gap %d)!"
-                    relative_msg msg
-                    min_weights.(sa.d.until.id) gap
+                let actual = min_weights.(sa.d.until.id) in
+                if actual > gap && not is_one_cycle_static_1_1 then (
+                  let head =
+                    if msg = relative_msg then [
+                      Text (Printf.sprintf "%s can be more than %s apart" (quote_msg msg_spec) (EventGraphOps.cycles_phrase gap));
+                      Label (None, sa.span, Printf.sprintf "after this %s, the next one can take %s" (describe_msg_use sa.d) (at_most actual));
+                      Note (Printf.sprintf "%s is declared `%s`, so this side must perform it %s without waiting for the other side"
+                        (quote_msg msg_spec) declared (every gap))
+                    ] else [
+                      Text (Printf.sprintf "%s can happen more than %s after %s"
+                        (quote_msg msg_spec) (EventGraphOps.cycles_phrase gap) (quote_msg rel_spec));
+                      Label (None, sa.span, Printf.sprintf "after this %s, %s can take %s" (describe_msg_use sa.d) (quote_msg msg_spec) (at_most actual));
+                      Note (Printf.sprintf "%s is declared `%s`, so it must happen %s after %s"
+                        (quote_msg msg_spec) declared (EventGraphOps.cycles_phrase gap) (quote_msg rel_spec))
+                    ]
                   in
-                  raise (LifetimeCheckError [Text error_msg; Except.codespan_local sa.span])
+                  let unbounded =
+                    if actual >= GraphAnalysis.event_distance_max then
+                      [Note "a path through the loop waits for another message, which can take any number of cycles"]
+                    else []
+                  in
+                  raise (LifetimeCheckError (head @ unbounded @ [
+                    Help (Printf.sprintf "make every path through the loop reach the next %s in time, or declare it `@dyn` to use a handshake"
+                      (quote_msg msg_spec))
+                  ]))
                 )
               )
           | None -> ()
@@ -532,12 +684,16 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
             slacks.(ev'.id) <- GraphAnalysis.event_distance_max
         ) g.events;
         let min_weights = GraphAnalysis.event_min_among_succ g.events slacks in
-        if min_weights.(ev_root.id) > init_offset && not is_one_cycle_static_1_1 then
-          let error_msg = Printf.sprintf "Static sync mode mismatch for initial offset of %s (actual init offset = %d > expected init offset %d)!"
-            relative_msg
-            min_weights.(ev_root.id) init_offset
-          in
-          raise (LifetimeCheckError [Text error_msg]) (* TODO: better error message *)
+        let actual = min_weights.(ev_root.id) in
+        if actual > init_offset && not is_one_cycle_static_1_1 then
+          raise (LifetimeCheckError [
+            Text (Printf.sprintf "the first %s can happen later than cycle %d" (quote_msg msg_spec) init_offset);
+            Label (None, g.thread_codespan, Printf.sprintf "the first one can take %s after the loop starts" (at_most actual));
+            Note (Printf.sprintf "%s is declared `%s`, so this side must perform it first at cycle %d and then %s"
+              (quote_msg msg_spec) declared init_offset (every gap));
+            Help (Printf.sprintf "make every path reach the first %s within %s, or declare it `@dyn` to use a handshake"
+              (quote_msg msg_spec) (EventGraphOps.cycles_phrase init_offset))
+          ])
       )
     );
     if other_check then (
@@ -575,21 +731,45 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
             if config.verbose then (
               Array.iteri (fun idx sl -> Printf.eprintf "Sl %d = %d\n" idx sl) slacks
             );
+            let root_adjusted = msg = relative_msg && !is_first in
             List.iter (fun ev' ->
-              if msg = relative_msg && !is_first && (ev'.source = `Root None) then
+              if root_adjusted && (ev'.source = `Root None) then
                 slacks.(ev'.id) <- slacks.(ev'.id) + init_offset - gap
               else if has_msg_end relative_msg ev' |> Option.is_none then
                 slacks.(ev'.id) <- -event_distance_max
             ) g.events;
             is_first := false;
-            let maxv = GraphAnalysis.event_predecessors ev |> List.map (fun ev' -> slacks.(ev'.id))
+            let preds = GraphAnalysis.event_predecessors ev in
+            let maxv = preds |> List.map (fun ev' -> slacks.(ev'.id))
               |> List.fold_left Int.max (-event_distance_max) in
-            if maxv > -gap then
-              let error_msg = Printf.sprintf "Static sync mode mismatch between %s and %s (actual gap = %d < expected gap %d)!"
-                relative_msg msg
-                (-maxv) gap
-              in
-              raise (LifetimeCheckError [Text error_msg; Except.codespan_local sa.span])
+            if maxv > -gap then (
+              let from_root = root_adjusted
+                && List.exists (fun ev' -> ev'.source = `Root None && slacks.(ev'.id) = maxv) preds in
+              let msg_name = msg_spec.msg in
+              raise (LifetimeCheckError (
+                if from_root then
+                  let start = -maxv + init_offset - gap in
+                  [
+                    Text (Printf.sprintf "the first %s can happen too early for the other side" (quote_msg msg_spec));
+                    Label (None, sa.span, Printf.sprintf "this %s can happen %s after the loop starts" (describe_msg_use sa.d) (EventGraphOps.cycles_phrase start));
+                    Note (Printf.sprintf "the other side is declared `%s`: it performs `%s` first at cycle %d and then %s"
+                      declared msg_name init_offset (every gap));
+                    Help (Printf.sprintf "wait until cycle %d before the first %s, e.g. with `cycle %d`" init_offset (describe_msg_use sa.d) (init_offset - start))
+                  ]
+                else if msg = relative_msg then [
+                  Text (Printf.sprintf "%s can happen more often than the other side allows" (quote_msg msg_spec));
+                  Label (None, sa.span, Printf.sprintf "this %s can happen again %s after the previous one" (describe_msg_use sa.d) (EventGraphOps.cycles_phrase (-maxv)));
+                  Note (Printf.sprintf "the other side is declared `%s`: it performs `%s` only %s"
+                    declared msg_name (every gap));
+                  Help (Printf.sprintf "wait at least %s between two of them, e.g. with `cycle %d`" (EventGraphOps.cycles_phrase gap) (gap + maxv))
+                ] else [
+                  Text (Printf.sprintf "%s can happen less than %s after %s" (quote_msg msg_spec) (EventGraphOps.cycles_phrase gap) (quote_msg rel_spec));
+                  Label (None, sa.span, Printf.sprintf "this %s can happen %s after %s" (describe_msg_use sa.d) (EventGraphOps.cycles_phrase (-maxv)) (quote_msg rel_spec));
+                  Note (Printf.sprintf "the other side is declared `%s`: it performs `%s` %s after `%s`"
+                    declared msg_name (EventGraphOps.cycles_phrase gap) rel_spec.msg);
+                  Help (Printf.sprintf "wait at least %s after %s" (EventGraphOps.cycles_phrase gap) (quote_msg rel_spec))
+                ]))
+            )
           | None -> ()
         ) (List.rev g.events)
    )

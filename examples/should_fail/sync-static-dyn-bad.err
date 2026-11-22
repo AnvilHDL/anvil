@@ -1,6 +1,8 @@
-error: Static sync mode mismatch between ri@req and ri@req (actual gap = 2 > expected gap 1)!
+error: `ri.req` can be more than 1 cycle apart
   --> should_fail/sync-static-dyn-bad.anvil:19:9
    |
 19 |         send ri.req(*r) >>
-   |         ^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^ after this `send ri.req`, the next one can take 2 cycles
+   = note: `ri.req` is declared `@#1`, so this side must perform it every cycle without waiting for the other side
+   = help: make every path through the loop reach the next `ri.req` in time, or declare it `@dyn` to use a handshake
 

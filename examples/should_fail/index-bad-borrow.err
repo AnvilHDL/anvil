@@ -1,11 +1,16 @@
-error: Attempted assignment to a borrowed register!
+error: cannot assign to `r` while a value read from it is still in use
  --> should_fail/index-bad-borrow.anvil:7:9
   |
 7 |         set r := 4'd3 >>
-  |         ^^^^^^^^^^^^^
-note: Borrowed at:
+  |         ^^^^^^^^^^^^^ `r` is assigned here
  --> should_fail/index-bad-borrow.anvil:6:26
   |
 6 |         let a_select = a[*r+:5];
-  |                          ^^
+  |                          ^^ `r` is read here
+ --> should_fail/index-bad-borrow.anvil:8:9
+  |
+8 |         dprint "Value = %d" (a_select)
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the value read is still used here
+  = note: reading `r` with `*` does not copy it, so `r` must not change until the value read is no longer needed
+  = help: assign `r` after the last use of the value, or copy the value into another register first
 

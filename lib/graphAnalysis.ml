@@ -637,6 +637,23 @@ let rec recurse_unfold expr_full_node expr_node =
 
 module IntHashTbl = Hashtbl.Make(Int)
 
+let unused_let_message span =
+  let open Except in
+  [
+    Text "nothing uses the value bound by this `let`";
+    Label (None, span, "this `let` is the last expression of its block");
+    Help "use the value after the `let`, e.g. `let x = ... >> dprint \"%d\" (x)`, or remove the `let`"
+  ]
+
+let zero_cycle_loop_message span =
+  let open Except in
+  [
+    Text "a loop iteration can finish in 0 cycles";
+    Label (None, span, "this loop body can complete in the same cycle it starts");
+    Note "every iteration of a `loop` must take at least one cycle";
+    Help "add a delay such as `cycle 1` to the loop body; `send` and `recv` can complete in the cycle they start, so they do not guarantee one"
+  ]
+
 (** Determine how many times [expr_node] must be unrolled so that the total
     body latency is at least as large as the recursion gap, then perform those
     unrolls.  [construct_graphIR] is the IR-building traversal from {!GraphBuilder}
@@ -656,7 +673,10 @@ let recurse_unfold_for_checks construct_graphIR ci graph (expr_node : Lang.expr_
       event_distance_max recurses
   in
   if recurse_dist = 0 then
-    raise (event_graph_error_default "Recurse delay must be greater than 0!" expr_node.span);
+    raise (EventGraphError (
+      match expr_node.d with
+      | Wait ({d = Let _; span; _}, {d = Recurse; _}) -> unused_let_message span
+      | _ -> zero_cycle_loop_message expr_node.span));
   (* the number of times to unfold is minimum for the recurse time to first pass the end event *)
   let unfold_times = full_dist / (max recurse_dist 1) in
   let cur_expr = ref expr_node in

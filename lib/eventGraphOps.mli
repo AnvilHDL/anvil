@@ -25,9 +25,8 @@ val sub_reg_range : Lang.identifier -> int -> int -> EventGraph.subreg_range
 (** A phrase naming the moment an event is reached, e.g. "the `recv ep.req` on line 9". *)
 val describe_event : EventGraph.event -> string
 
-(** A phrase naming when an event pattern is matched, e.g. "1 cycle after the `recv ep.req` on line 9".
-    [None] for a pattern that never matches. *)
-val describe_pat_end : EventGraph.event * Lang.delay_pat -> string option
+(** When a delay pattern ends after the moment named [at], e.g. "1 cycle after [at]", or "forever". *)
+val describe_pat_after : Lang.delay_pat -> string -> string
 
-(** A lifetime in words, e.g. "from the `recv ep.req` on line 9 until 1 cycle after the `recv ep.req` on line 9". *)
-val describe_lifetime : EventGraph.lifetime -> string
+(** "1 cycle", "3 cycles". *)
+val cycles_phrase : int -> string

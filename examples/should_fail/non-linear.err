@@ -1,11 +1,12 @@
-error: Non-linearizable register assignment!
- --> should_fail/non-linear.anvil:5:36
+error: `r1` may be assigned twice at the same time
+ --> should_fail/non-linear.anvil:5:43
   |
 5 |         if 1'b1 { set r1 := 4'd0 } else { set r1 := 4'd1 };
-  |                                    ^^^^^^^^^^^^^^^^^^^^^^^
-note: Conflicting with:
+  |                                           ^^^^^^^^^^^^^^ this assignment to `r1`
  --> should_fail/non-linear.anvil:6:9
   |
 6 |         set r1 := 4'd2
-  |         ^^^^^^^^^^^^^^
+  |         ^^^^^^^^^^^^^^ may happen at the same time as this one
+  = note: assignments to the same register must happen one after another
+  = help: order them with `>>`, or put them in different branches of an `if`
 

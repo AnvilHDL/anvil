@@ -1,17 +1,16 @@
-warning: Value bound to a is potentially not awaited!
+warning: the value bound to `a` may never be waited for
  --> should_fail/irrelevant_msg.anvil:7:9
   |
 7 |         let a = recv ep.req;
-  |         ^^^^^^^^^^^^^^^^^^^
+  |         ^^^^^^^^^^^^^^^^^^^ this value takes time to compute
+  = note: after `;` the code continues without waiting for the value, so a path that does not use it can end before the value is ready
+  = help: use `>>` instead of `;` to wait for the value, or use it on every path
 
-error: Non-linearizable message use!
+error: `recv ep.req` can overlap with itself in the next loop iteration
  --> should_fail/irrelevant_msg.anvil:7:17
   |
 7 |         let a = recv ep.req;
-  |                 ^^^^^^^^^^^
-note: Conflicting with:
- --> should_fail/irrelevant_msg.anvil:7:17
-  |
-7 |         let a = recv ep.req;
-  |                 ^^^^^^^^^^^
+  |                 ^^^^^^^^^^^ this may not have finished when the next iteration starts it again
+  = note: uses of the same message must happen one after another
+  = help: wait for it with `>>`, so that the loop iteration ends only after it completes
 

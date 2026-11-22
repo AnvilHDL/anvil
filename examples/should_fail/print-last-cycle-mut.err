@@ -1,6 +1,12 @@
-error: Value does not live long enough in debug print!
+error: printed value does not live long enough
  --> should_fail/print-last-cycle-mut.anvil:9:9
   |
 9 |         dprint "x: %d" (x);
-  |         ^^^^^^^^^^^^^^^^^^
+  |         ^^^^^^^^^^^^^^^^^^ the value is printed here
+ --> should_fail/print-last-cycle-mut.anvil:8:17
+  |
+8 |         let x = recv ch.req >>
+  |                 ^^^^^^^^^^^ the value depends on this `recv ch.req` and is only valid until the next `ch.res` after it
+  = help: print the value earlier, while it is still valid
+  = help: alternatively, declare a longer lifetime for `req` in channel class `ch`; it is `@res` now
 

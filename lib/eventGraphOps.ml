@@ -29,7 +29,7 @@ let subreg_ranges_possibly_intersect r1 r2 =
 let print_graph (g: event_graph) =
   List.iter (fun ev ->
     (match ev.origin with
-     | Some o -> Printf.eprintf "> %d is %s on line %d\n" ev.id o.what o.where.st.pos_lnum
+     | Some o -> Printf.eprintf "> %d is the %s on line %d\n" ev.id o.what o.where.st.pos_lnum
      | None -> ());
     match ev.source with
     | `Later (e1, e2) -> Printf.eprintf "> %d: later %d %d\n" ev.id e1.id e2.id
@@ -100,7 +100,7 @@ let cycles_phrase n = if n = 1 then "1 cycle" else Printf.sprintf "%d cycles" n
 
 let rec describe_event (ev : event) =
   match ev.origin with
-  | Some o -> Printf.sprintf "%s on line %d" o.what o.where.st.pos_lnum
+  | Some o -> Printf.sprintf "the %s on line %d" o.what o.where.st.pos_lnum
   | None ->
     match ev.source with
     | `Root None -> "the start of the loop iteration"
@@ -125,20 +125,12 @@ let rec describe_event (ev : event) =
       | [b; a] -> Printf.sprintf "both %s and %s" a b
       | last :: rest -> Printf.sprintf "all of %s and %s" (String.concat ", " (List.rev rest)) last
 
-let describe_pat_end ((ev, pat) : event * Lang.delay_pat) =
-  let at = describe_event ev in
+let describe_pat_after (pat : Lang.delay_pat) at =
   match pat with
-  | `Eternal -> None
-  | `Cycles 0 -> Some at
-  | `Cycles n -> Some (Printf.sprintf "%s after %s" (cycles_phrase n) at)
+  | `Eternal -> "forever"
+  | `Cycles 0 -> at
+  | `Cycles n -> Printf.sprintf "%s after %s" (cycles_phrase n) at
   | `Message_with_offset (m, o, plus) ->
     let next = Printf.sprintf "the next `%s.%s` after %s" m.endpoint m.msg at in
-    if o = 0 then Some next
-    else Some (Printf.sprintf "%s %s %s" (cycles_phrase o) (if plus then "after" else "before") next)
-
-let describe_lifetime (lt : lifetime) =
-  let start = describe_event lt.live in
-  match List.filter_map describe_pat_end lt.dead |> List.sort_uniq compare with
-  | [] -> Printf.sprintf "from %s on" start
-  | [e] -> Printf.sprintf "from %s until %s" start e
-  | es -> Printf.sprintf "from %s until the first of: %s" start (String.concat "; " es)
+    if o = 0 then next
+    else Printf.sprintf "%s %s %s" (cycles_phrase o) (if plus then "after" else "before") next

@@ -1,6 +1,12 @@
-error: Lvalue index does not live long enough!
+error: index into `r` does not live long enough
   --> should_fail/index-bad-borrow2.anvil:12:9
    |
 12 |         set r[req] := 1'b1 >>
-   |         ^^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^ the index is used here
+  --> should_fail/index-bad-borrow2.anvil:10:19
+   |
+10 |         let req = recv e.req >>
+   |                   ^^^^^^^^^^ the value depends on this `recv e.req` and is only valid until 2 cycles after it
+   = help: use the index while it is still valid, or store it in a register first
+   = help: alternatively, declare a longer lifetime for `req` in channel class `ch`; it is `@#2` now
 

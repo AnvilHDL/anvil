@@ -1,6 +1,8 @@
-error: Static sync mode mismatch between ep@req and ep@req (actual gap = 1 < expected gap 3)!
+error: the first `ep.req` can happen too early for the other side
  --> should_fail/static_sync_bad.anvil:7:17
   |
 7 |         let r = recv ep.req >>
-  |                 ^^^^^^^^^^^
+  |                 ^^^^^^^^^^^ this `recv ep.req` can happen 0 cycles after the loop starts
+  = note: the other side is declared `@#3`: it performs `req` first at cycle 2 and then every 3 cycles
+  = help: wait until cycle 2 before the first `recv ep.req`, e.g. with `cycle 2`
 

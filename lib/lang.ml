@@ -76,21 +76,11 @@ type delay_pat = [
 does not include an endpoint name component. *)
 type delay_pat_chan_local = [ `Cycles of int | `Eternal | `Message_with_offset of (identifier * int * bool) ]
 
-let string_of_delay_pat (t : delay_pat) : string =
-  match t with
-  | `Cycles n -> Printf.sprintf "#%d" n
-  | `Message_with_offset (msg_spec, offset, plus) ->
-      Printf.sprintf "%s%+d" (string_of_msg_spec msg_spec) (if plus then offset else -offset)
-  | `Eternal -> "E"
-
 (** Lifetime signature, specifying that the lifetime lasts until matching {{!sig_lifetime.e}ending} delay patterns. *)
 type sig_lifetime = { e: delay_pat; }
 
 (** Same as {!sig_lifetime} but local to a channel. *)
 type sig_lifetime_chan_local = { e: delay_pat_chan_local; }
-
-let string_of_lifetime (lt : sig_lifetime) : string =
-  Printf.sprintf "%s" (string_of_delay_pat lt.e)
 
 let sig_lifetime_this_cycle_chan_local : sig_lifetime_chan_local =
   { e = `Cycles 1 }

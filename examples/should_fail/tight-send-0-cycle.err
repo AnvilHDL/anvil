@@ -1,6 +1,8 @@
-error: Recurse delay must be greater than 0!
+error: a loop iteration can finish in 0 cycles
  --> should_fail/tight-send-0-cycle.anvil:8:9
   |
 8 |         send e.req (*r)
-  |         ^^^^^^^^^^^^^^^
+  |         ^^^^^^^^^^^^^^^ this loop body can complete in the same cycle it starts
+  = note: every iteration of a `loop` must take at least one cycle
+  = help: add a delay such as `cycle 1` to the loop body; `send` and `recv` can complete in the cycle they start, so they do not guarantee one
 

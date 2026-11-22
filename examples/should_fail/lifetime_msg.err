@@ -1,6 +1,12 @@
-error: Value does not live long enough in debug print!
+error: printed value does not live long enough
  --> should_fail/lifetime_msg.anvil:9:9
   |
 9 |         dprint "Received %d" (a)
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^ the value is printed here
+ --> should_fail/lifetime_msg.anvil:7:17
+  |
+7 |         let a = recv e.req >>
+  |                 ^^^^^^^^^^ the value depends on this `recv e.req` and is only valid until 1 cycle after it
+  = help: print the value earlier, while it is still valid
+  = help: alternatively, declare a longer lifetime for `req` in channel class `reg_itfc`; it is `@#1` now
 

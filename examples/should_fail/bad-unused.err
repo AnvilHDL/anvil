@@ -1,12 +1,19 @@
-warning: Value bound to unused is potentially not awaited!
+warning: the value bound to `unused` may never be waited for
  --> should_fail/bad-unused.anvil:3:5
   |
 3 |     let unused = { cycle 1 >> 1'b1 };
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this value takes time to compute
+  = note: after `;` the code continues without waiting for the value, so a path that does not use it can end before the value is ready
+  = help: use `>>` instead of `;` to wait for the value, or use it on every path
 
-error: Value does not live long enough in debug print!
+error: printed value is used before it is available
  --> should_fail/bad-unused.anvil:7:7
   |
 7 |       dprint "Value is %d" (unused);
-  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the value is used here
+ --> should_fail/bad-unused.anvil:3:20
+  |
+3 |     let unused = { cycle 1 >> 1'b1 };
+  |                    ^^^^^^^ the value is only available after this `cycle 1`
+  = help: wait for the value with `>>` before using it, e.g. `let x = ... >> dprint "%d" (x)`
 
