@@ -2,9 +2,7 @@ open Lang
 
 module DTypeCheck = struct
   let warn msg span _file_name =
-    Printf.eprintf "[Warning] %s\n" msg;
-    SpanPrinter.print_code_span ~indent:2 ~trunc:(-5) stderr span;
-    flush stderr
+    Except.warn [Text msg; Except.codespan_local span]
 
   let type_error msg span =
     raise (Except.TypeError [Text msg; Except.codespan_local span])

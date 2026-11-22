@@ -1,6 +1,6 @@
-Compilation failed!
-Event graph error:
-Undefined identifier: a
-should_fail/undefined-binding.anvil:3:9:
-      3|         a
-       |         ^
+error: Undefined identifier: a
+ --> should_fail/undefined-binding.anvil:3:9
+  |
+3 |         a
+  |         ^
+

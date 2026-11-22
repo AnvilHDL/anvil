@@ -1,3 +1,2 @@
-Compilation failed!
-Type error:
-Expected 1 parameter but got 2 in foo
+error: Expected 1 parameter but got 2 in foo
+

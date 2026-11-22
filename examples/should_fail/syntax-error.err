@@ -1,5 +1,6 @@
-Compilation failed!
-Syntax error
-should_fail/syntax-error.anvil:3:5:
-      3|     loop {
-       |     ^^^^
+error: Syntax error
+ --> should_fail/syntax-error.anvil:3:5
+  |
+3 |     loop {
+  |     ^^^^
+

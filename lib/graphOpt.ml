@@ -578,8 +578,10 @@ let combinational_codegen (config : Config.compile_config) (graph : event_graph)
           match a.d with
           | DebugFinish
           | DebugPrint _ -> (
-            Printf.eprintf "[Warning] Optimization for combinational possible but skipping for there being Debug actions in %d thread\n" graph.thread_id;
-            (SpanPrinter.print_code_span ~indent:2 ~trunc:(-5) stderr a.span);
+            Except.warn [
+              Except.Text (Printf.sprintf "Optimization for combinational possible but skipping for there being Debug actions in %d thread" graph.thread_id);
+              Except.codespan_local a.span
+            ];
             false
           )
           | _ -> true

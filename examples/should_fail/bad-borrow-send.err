@@ -1,10 +1,11 @@
-Compilation failed!
-Borrow checking failed:
-Attempted assignment to a borrowed register!
-should_fail/bad-borrow-send.anvil:19:9:
-     19|         set r := 1'b1
-       |         ^^^^^^^^^^^^^
-Borrowed at:
-should_fail/bad-borrow-send.anvil:18:21:
-     18|         send e.req (*r) >>
-       |                     ^^
+error: Attempted assignment to a borrowed register!
+  --> should_fail/bad-borrow-send.anvil:19:9
+   |
+19 |         set r := 1'b1
+   |         ^^^^^^^^^^^^^
+note: Borrowed at:
+  --> should_fail/bad-borrow-send.anvil:18:21
+   |
+18 |         send e.req (*r) >>
+   |                     ^^
+

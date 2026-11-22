@@ -1,6 +1,6 @@
-Compilation failed!
-Event graph error:
-Mismatching message direction!
-should_fail/message-bad-direction.anvil:18:17:
-     18|         let y = recv ch_out.req >>
-       |                 ^^^^^^^^^^^^^^^
+error: Mismatching message direction!
+  --> should_fail/message-bad-direction.anvil:18:17
+   |
+18 |         let y = recv ch_out.req >>
+   |                 ^^^^^^^^^^^^^^^
+

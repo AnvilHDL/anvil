@@ -1,5 +1,6 @@
-Compilation failed!
-Self-referential dependent sync mode is not allowed!
-should_fail/self-referential-sync-mode.anvil:2:5:
-      2|     left req : (logic@#1) @#req+1 // req references itself which is not allowed
-       |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+error: Self-referential dependent sync mode is not allowed!
+ --> should_fail/self-referential-sync-mode.anvil:2:5
+  |
+2 |     left req : (logic@#1) @#req+1 // req references itself which is not allowed
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

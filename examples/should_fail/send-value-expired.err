@@ -1,6 +1,6 @@
-Compilation failed!
-Borrow checking failed:
-Value does not live long enough in send!
-should_fail/send-value-expired.anvil:12:9:
-     12|         send ep.res (inc_x) >>
-       |         ^^^^^^^^^^^^^^^^^^^
+error: Value does not live long enough in send!
+  --> should_fail/send-value-expired.anvil:12:9
+   |
+12 |         send ep.res (inc_x) >>
+   |         ^^^^^^^^^^^^^^^^^^^
+

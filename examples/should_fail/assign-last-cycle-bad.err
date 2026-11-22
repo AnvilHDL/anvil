@@ -1,14 +1,15 @@
-Compilation failed!
-Borrow checking failed:
-Attempted assignment to a borrowed register!
-should_fail/assign-last-cycle-bad.anvil:11:11:
-     11|         } else {
-       |           ^^^^^^
-     12| 
-       | 
-     13| 
-       | ^^^^^^^^^
-Borrowed at:
-should_fail/assign-last-cycle-bad.anvil:8:21:
-      8|         send e.req (*r) >>
-       |                     ^^
+error: Attempted assignment to a borrowed register!
+  --> should_fail/assign-last-cycle-bad.anvil:11:11
+   |
+11 |         } else {
+   |           ^^^^^^
+12 |             set r := 1'b1
+   |             ^^^^^^^^^^^^^
+13 |         }
+   |         ^
+note: Borrowed at:
+  --> should_fail/assign-last-cycle-bad.anvil:8:21
+   |
+ 8 |         send e.req (*r) >>
+   |                     ^^
+

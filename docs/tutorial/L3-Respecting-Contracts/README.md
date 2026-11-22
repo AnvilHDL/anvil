@@ -193,10 +193,11 @@ This is a small demonstration of how Anvil helps ensure your process definition 
 
 When you run the program you will see the following error:
 ```bash
-Borrow checking failed:
-Static sync mode mismatch between endp@read_req and endp@read_req (actual gap = 2 > expected gap 1)!
-memory_safe.anvil:21:23:
-  21|             let addr = recv endp.read_req >>
+error: Static sync mode mismatch between endp@read_req and endp@read_req (actual gap = 2 > expected gap 1)!
+  --> memory_safe.anvil:21:24
+   |
+21 |             let addr = recv endp.read_req >>
+   |                        ^^^^^^^^^^^^^^^^^^
 ```
 
 This is because the read thread (loop) waits 1 cycle before looping back to the next cycle hence, the gap between `read_req` and `read_res` is 1 cycle and therefore the gap between `read_req` and next `read_req` will be 1+1 = 2 cycles. This violates the contract of the channel. This will be fixed by removing the 1 cycle delay in the read thread at the end.

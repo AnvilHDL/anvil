@@ -68,28 +68,28 @@ let input t dst dst_pos len =
   to_read
 
 (* Reads a line from the in-memory channel, returning it as a string option.
-   Newline characters are not included in the returned string.
+   Lines end at "\n", "\r\n" or "\r", as in the lexer; the line ending is not
+   included in the returned string.
    Returns [None] if the end of the channel is reached. *)
 let input_line t =
   if t.pos >= t.len then None
   else
-    let start_pos = t.pos in
-    let rec find_newline p =
-      if p >= t.len then p
-      else
-        let get_char offset = Bytes.get t.buffer (Int64.to_int (Int64.add p offset)) in
-        if get_char 0L = '\n' then p
-        else if get_char 0L = '\r' then
-          if Int64.add p 1L < t.len && get_char 1L = '\n' then
-            Int64.add p 1L
-          else p
-        else find_newline (Int64.add p 1L)
+    let len = Int64.to_int t.len in
+    let start = Int64.to_int t.pos in
+    let rec find_eol i =
+      if i >= len then i
+      else match Bytes.get t.buffer i with
+        | '\n' | '\r' -> i
+        | _ -> find_eol (i + 1)
     in
-    let end_pos = find_newline start_pos in
-    let line_len = Int64.sub end_pos start_pos in
-    let line = Bytes.sub t.buffer (Int64.to_int start_pos) (Int64.to_int line_len) in
-    t.pos <- end_pos;
-    Some (Bytes.to_string line)
+    let eol = find_eol start in
+    let next =
+      if eol >= len then eol
+      else if Bytes.get t.buffer eol = '\r' && eol + 1 < len && Bytes.get t.buffer (eol + 1) = '\n' then eol + 2
+      else eol + 1
+    in
+    t.pos <- Int64.of_int next;
+    Some (Bytes.sub_string t.buffer start (eol - start))
 
 (* Seeks to a specific position in the channel. *)
 let seek t pos =

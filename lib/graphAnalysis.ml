@@ -128,7 +128,7 @@ let event_succ_distance non_succ_dist msg_dist_f later_dist_f either_dist_f even
   List.rev events |> List.iter (fun ev' ->
     if IntHashtbl.find_opt dist ev'.id |> Option.is_none then
     let d = match ev'.source with
-    | `Root None -> raise (Except.unknown_error_default "Unexpected root!"); non_succ_dist (* dummy fallback *)
+    | `Root None -> raise (Except.internal_error "Unexpected root!"); non_succ_dist (* dummy fallback *)
     | `Later (ev1, ev2) -> later_dist_f (get_dist ev1) (get_dist ev2)
     | `Seq (ev1, ad) ->
       let d1 = get_dist ev1 in
@@ -147,7 +147,7 @@ let event_succ_distance non_succ_dist msg_dist_f later_dist_f either_dist_f even
       let first_two = either_dist_f (get_dist ev1) (get_dist ev2) in
       List.fold_left (fun v e -> either_dist_f v @@ get_dist e) first_two el
     | _ ->
-      raise (Except.unknown_error_default "Unexpected event source!"); non_succ_dist (* dummy fallback *)
+      raise (Except.internal_error "Unexpected event source!"); non_succ_dist (* dummy fallback *)
     in
     set_dist ev' (min d event_distance_max)
   );
@@ -290,7 +290,7 @@ let events_pred_min_dist ev =
             update_dist e' v
         )
       )
-      | _ -> raise (Except.unknown_error_default "Unexpected event source!")
+      | _ -> raise (Except.internal_error "Unexpected event source!")
     );
   res
 

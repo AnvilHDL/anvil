@@ -131,7 +131,7 @@ let event_pat_rel2 events lookup_message ev_pat1 ev_pat2 =
 
       | false -> match ((lookup_message m): message_def option) with
         | Some def -> raise_fatal (LifetimeCheckError [Text "Negative Offset Unsupported right now"; Except.codespan_local def.span])
-        | None -> raise_fatal (LifetimeCheckError [Text (Printf.sprintf "Message_def_not_found %s" (string_of_msg_spec m)); Except.codespan_local Lang.code_span_dummy])
+        | None -> raise_fatal (Except.internal_error (Printf.sprintf "Message_def_not_found %s" (string_of_msg_spec m)))
   in
   match ev_pat1 with
   | [spat1] -> (

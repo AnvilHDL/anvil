@@ -34,13 +34,13 @@ let rec data_type_size (type_defs : t) (macro_defs : macro_def list) (dtype : da
             | None ->
                 match ParamEnv.get_opt (Param param_name) with
                 | Some value -> value
-                | None -> failwith ("Unknown parameter " ^ param_name)
+                | None -> raise (TypeError [Text ("Unknown parameter " ^ param_name)])
       in
       (data_type_size type_defs macro_defs dtype') * n_concrete
   | `Named (type_name, params) ->
       let type_def = match Utils.StringMap.find_opt type_name type_defs with
       | Some type_def -> type_def
-      | None -> failwith("Unknown Datatype: "^type_name)
+      | None -> raise (TypeError [Text ("Unknown Datatype: " ^ type_name)])
       in
       ParamConcretise.concretise_dtype type_name type_def.params params type_def.body |> data_type_size type_defs macro_defs
   | `Variant (dt,vlist) as var ->

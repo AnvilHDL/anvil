@@ -3,28 +3,43 @@ exception CompileError of Except.error_message
 let remap_missing_filename_in_fragment file_name fragments =
   let mapper = function
     | Except.Codespan (None, codespan) -> Except.Codespan (file_name, codespan)
+    | Except.Label (None, codespan, label) -> Except.Label (file_name, codespan, label)
     | other -> other
   in
   match file_name with
   | Some _ -> List.map mapper fragments
   | None -> fragments
 
-let convert_intermediate_anvil_errors (e: exn) file_name =
+let issue_tracker_url = "https://github.com/AnvilHDL/anvil/issues"
+
+(* Marks a message as describing a bug in the compiler. *)
+let internal_error_message (msg : Except.error_message) =
   let open Except in
+  let note = Note ("this is a bug in the Anvil compiler; please report it at " ^ issue_tracker_url) in
+  match msg with
+  | Text t :: rest -> (Text ("internal compiler error: " ^ t) :: rest) @ [note]
+  | _ -> (Text "internal compiler error" :: msg) @ [note]
+
+(* Describes an exception that escaped the compiler's own error handling. *)
+let internal_error_of_exn (e : exn) =
+  let text = match e with
+    | Failure s -> s
+    | Invalid_argument s -> "invalid argument: " ^ s
+    | e -> Printexc.to_string e
+  in
+  internal_error_message [Except.Text text]
+
+let convert_intermediate_anvil_errors (e: exn) file_name =
   let mapped = remap_missing_filename_in_fragment file_name in
   match e with
-  | EventGraph.LifetimeCheckError msg ->
-      CompileError ((Text "Borrow checking failed:")::mapped msg)
-  | EventGraph.EventGraphError msg ->
-      CompileError ((Text "Event graph error:")::mapped msg)
-  | Except.TypeError msg ->
-      CompileError ((Text "Type error:")::mapped msg)
-  | Except.UnimplementedError msg ->
-      CompileError ((Text "Unimplemented error:")::mapped msg)
-  | Except.UnknownError msg ->
-      CompileError ((Text "Unknown error:")::mapped msg)
+  | EventGraph.LifetimeCheckError msg
+  | EventGraph.EventGraphError msg
+  | Except.TypeError msg
+  | Except.UnimplementedError msg
   | Except.CodegenError msg ->
-      CompileError ((Text "Code generation error:")::mapped msg)
+      CompileError (mapped msg)
+  | Except.InternalError msg ->
+      CompileError (internal_error_message (mapped msg))
   | _ -> e
 
 let raise_compile_error file_name msg =
@@ -58,8 +73,7 @@ let rec parse_recursive cunits parsed_files (config : Config.compile_config) fil
               | Lexer.SyntaxError msg ->
                 let open Except in
                 [
-                  (Text "Syntax error:");
-                  (Text msg);
+                  (Text ("Syntax error: " ^ msg));
                   (Codespan (Some filename, {st = Lexing.lexeme_start_p lexbuf; ed = Lexing.lexeme_end_p lexbuf}))
                 ] |> raise_compile_error (Some filename)
               | _ ->

@@ -12,9 +12,10 @@ type json_trace = {
 }
 
 type json_fragment = {
-  kind: string;  (* "text" | "codespan" *)
+  kind: string;  (* "text" | "codespan" | "note" | "help" *)
   text: string option;
   trace: json_trace option;
+  label: string option;  (* label of a codespan, if any *)
 }
 
 type json_error = {

@@ -1,6 +1,6 @@
-Compilation failed!
-Borrow checking failed:
-Static sync mode mismatch between ep@req and ep@req (actual gap = 1 < expected gap 3)!
-should_fail/static_dyn_too_freq_start.anvil:7:17:
-      7|         let r = recv ep.req >>
-       |                 ^^^^^^^^^^^
+error: Static sync mode mismatch between ep@req and ep@req (actual gap = 1 < expected gap 3)!
+ --> should_fail/static_dyn_too_freq_start.anvil:7:17
+  |
+7 |         let r = recv ep.req >>
+  |                 ^^^^^^^^^^^
+

@@ -1,6 +1,6 @@
-Compilation failed!
-Event graph error:
-Endpoint ep not owned by the process
-should_fail/foreign-arg-use.anvil:16:9:
-     16|         send ep.res(*x) >>
-       |         ^^^^^^^^^^^^^^^
+error: Endpoint ep not owned by the process
+  --> should_fail/foreign-arg-use.anvil:16:9
+   |
+16 |         send ep.res(*x) >>
+   |         ^^^^^^^^^^^^^^^
+

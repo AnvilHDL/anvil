@@ -252,9 +252,10 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
           (* no need to wait if the value is current *)
           if td1.ld.lt.live.id <> ctx.current.id && not binding.binding_used then (
             (* raise (event_graph_error_default "Value is potentially not awaited!" e1.span) *)
-            Printf.eprintf "[Warning] Value bound to %s is potentially not awaited!\n" ident;
-            (SpanPrinter.print_code_span ~indent:2 ~trunc:(-5) stderr e1.span)
-          ;
+            Except.warn [
+              Text (Printf.sprintf "Value bound to %s is potentially not awaited!" ident);
+              Except.codespan_local e1.span
+            ]
           );
           td
       | Let _ ->
@@ -631,7 +632,10 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
           let total_offset_le = MaybeConst.add (binop_td_const e.span Add) (_binop_td_td e.span Add) offset_le inner_le_nd in
           let off_i = MaybeConst.map_off total_offset_le in
           let (off, le') = if off_i < 0 then (
-            Printf.eprintf "[Warning] The offset is not a constant value for %s, borrowing full range\n" reg_ident;
+            Except.warn [
+              Text (Printf.sprintf "The offset is not a constant value for %s, borrowing full range" reg_ident);
+              Except.codespan_local e.span
+            ];
             (0, len)
           ) else (off_i, len) in
           let (wire', w') = WireCollection.add_slice graph.thread_id w (MaybeConst.map (fun td -> unwrap_or_err "Invalid indexing in lvalue" e.span td.ld.w) total_offset_le) le' graph.wires in
@@ -658,7 +662,10 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
           let total_offset_le = MaybeConst.add_const field_offset_le (binop_td_const e.span Add) inner_le_nd in
           let off_i = MaybeConst.map_off total_offset_le in
           let (off, le') = if off_i < 0 then (
-            Printf.eprintf "[Warning] The offset is not a constant value for indirection %s, borrowing full range\n" field_id.d;
+            Except.warn [
+              Text (Printf.sprintf "The offset is not a constant value for indirection %s, borrowing full range" field_id.d);
+              Except.codespan_local e.span
+            ];
             (0, len)
           ) else (off_i, len) in
           let (wi', new_w) = WireCollection.add_slice graph.thread_id w (MaybeConst.map (fun td -> unwrap_or_err "Invalid indexing in indirection" e.span td.ld.w) total_offset_le) le' graph.wires in

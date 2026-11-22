@@ -1,10 +1,11 @@
-Compilation failed!
-Borrow checking failed:
-Attempted assignment to a borrowed register!
-should_fail/tight-send-assign.anvil:8:9:
-      8|         set r := 1'b1 >>
-       |         ^^^^^^^^^^^^^
-Borrowed at:
-should_fail/tight-send-assign.anvil:9:21:
-      9|         send e.req (*r)
-       |                     ^^
+error: Attempted assignment to a borrowed register!
+ --> should_fail/tight-send-assign.anvil:8:9
+  |
+8 |         set r := 1'b1 >>
+  |         ^^^^^^^^^^^^^
+note: Borrowed at:
+ --> should_fail/tight-send-assign.anvil:9:21
+  |
+9 |         send e.req (*r)
+  |                     ^^
+

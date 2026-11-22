@@ -1,6 +1,6 @@
-Compilation failed!
-Borrow checking failed:
-Value does not live long enough in debug print!
-should_fail/try_recv_lifetime.anvil:12:9:
-     12|         dprint "r1 should be dead now %d" (r1);
-       |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+error: Value does not live long enough in debug print!
+  --> should_fail/try_recv_lifetime.anvil:12:9
+   |
+12 |         dprint "r1 should be dead now %d" (r1);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

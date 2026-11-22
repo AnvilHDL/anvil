@@ -12,9 +12,10 @@ type json_trace = {
 }
 
 type json_fragment = {
-  kind: string;  (* "text" | "codespan" *)
+  kind: string;  (* "text" | "codespan" | "note" | "help" *)
   text: string option;
   trace: json_trace option;
+  label: string option;  (* label of a codespan, if any *)
 }
 
 type json_error = {
@@ -33,27 +34,32 @@ type json_output = {
 (** Convert error message to JSON errors *)
 let error_message_to_json_error (error_type : string) (msg : Except.error_message) =
   let open Except in
+  let codespan path span label =
+    let open Lang in
+    let resolved_path = match path with
+      | Some f -> Some f
+      | None -> (let f = span.st.pos_fname in if f = "" then None else Some f)
+    in
+    let trace = {
+      path = resolved_path;
+      start_pos = { line = span.st.pos_lnum; col = SourceColumn.utf16_column span.st };
+      end_pos = { line = span.ed.pos_lnum; col = SourceColumn.utf16_column span.ed };
+    } in
+    let str = SpanPrinter.string_of_code_span span in
+    { kind = "codespan"; text = str; trace = Some trace; label }
+  in
   let description =
     List.map (function
-      | Text desc -> { kind = "text"; text = Some desc; trace = None }
-      | Codespan (path, span) ->
-        let open Lang in
-        let resolved_path = match path with
-          | Some f -> Some f
-          | None -> (let f = span.st.pos_fname in if f = "" then None else Some f)
-        in
-        let trace = {
-          path = resolved_path;
-          start_pos = { line = span.st.pos_lnum; col = SourceColumn.utf16_column span.st };
-          end_pos = { line = span.ed.pos_lnum; col = SourceColumn.utf16_column span.ed };
-        } in
-        let str = SpanPrinter.string_of_code_span span in
-        { kind = "codespan"; text = str; trace = Some trace }
+      | Text desc -> { kind = "text"; text = Some desc; trace = None; label = None }
+      | Codespan (path, span) -> codespan path span None
+      | Label (path, span, label) -> codespan path span (Some label)
+      | Note desc -> { kind = "note"; text = Some desc; trace = None; label = None }
+      | Help desc -> { kind = "help"; text = Some desc; trace = None; label = None }
     ) msg
   in
   let rec find_first_codespan = function
     | [] -> None
-    | Codespan (path, span) :: _ -> Some (path, span)
+    | (Codespan (path, span) | Label (path, span, _)) :: _ -> Some (path, span)
     | _ :: rest -> find_first_codespan rest
   in
   let path = match find_first_codespan msg with
@@ -83,7 +89,7 @@ let json_fragment_to_yojson (f : json_fragment) =
   let base = [
     ("kind", `String f.kind);
     ("text", match f.text with None -> `Null | Some t -> `String t)
-  ] in
+  ] @ (match f.label with None -> [] | Some l -> [("label", `String l)]) in
   match f.trace with
   | None -> `Assoc base
   | Some tr -> `Assoc (base @ [ ("trace", json_trace_to_yojson tr) ])

@@ -1,5 +1,6 @@
-Compilation failed!
-Syntax error
-should_fail/cycle-param.anvil:4:15:
-      4|         cycle n >> dprint "tick" ()
-       |               ^
+error: Syntax error
+ --> should_fail/cycle-param.anvil:4:15
+  |
+4 |         cycle n >> dprint "tick" ()
+  |               ^
+

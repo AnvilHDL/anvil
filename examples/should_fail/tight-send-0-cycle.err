@@ -1,6 +1,6 @@
-Compilation failed!
-Event graph error:
-Recurse delay must be greater than 0!
-should_fail/tight-send-0-cycle.anvil:8:9:
-      8|         send e.req (*r)
-       |         ^^^^^^^^^^^^^^^
+error: Recurse delay must be greater than 0!
+ --> should_fail/tight-send-0-cycle.anvil:8:9
+  |
+8 |         send e.req (*r)
+  |         ^^^^^^^^^^^^^^^
+

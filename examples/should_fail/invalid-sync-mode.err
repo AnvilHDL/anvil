@@ -1,5 +1,6 @@
-Compilation failed!
-Undefined message specified in dynamic sync mode!
-should_fail/invalid-sync-mode.anvil:5:5:
-      5|     right output : (T@#1) @#data+1-@#data+1
-       |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+error: Undefined message specified in dynamic sync mode!
+ --> should_fail/invalid-sync-mode.anvil:5:5
+  |
+5 |     right output : (T@#1) @#data+1-@#data+1
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
