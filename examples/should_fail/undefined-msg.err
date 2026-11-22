@@ -1,4 +1,4 @@
-error: Endpoint ch not owned by the process
+error: no endpoint named `ch`
  --> should_fail/undefined-msg.anvil:3:20
   |
 3 |         cycle 1 >> send ch.req (1'b0)

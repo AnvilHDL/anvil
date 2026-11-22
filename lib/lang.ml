@@ -593,69 +593,105 @@ let get_message_direction (msg_dir : message_direction)
 
 let string_of_channel_class (cc : channel_class_def) : string =
   Printf.sprintf "Channel class %s" cc.name
+
+(** How a binary operator is written in Anvil. *)
+let binop_symbol (binop : binop) : string =
+  match binop with
+  | Add -> "+"
+  | Sub -> "-"
+  | Xor -> "^"
+  | And -> "&"
+  | Or -> "|"
+  | LAnd -> "&&"
+  | LOr -> "||"
+  | Lt -> "<"
+  | Gt -> ">"
+  | Lte -> "<="
+  | Gte -> ">="
+  | Shl -> "shl"
+  | Shr -> "shr"
+  | Eq -> "=="
+  | Neq -> "!="
+  | Mul -> "*"
+  | In -> "in"
+
+(* Printers in Anvil syntax, used in error messages. *)
 let rec string_of_expr (e : expr) : string =
+  let operand (n : expr_node) =
+    match n.d with
+    | Binop _ -> "(" ^ string_of_expr n.d ^ ")"
+    | _ -> string_of_expr n.d
+  in
+  let list (l : expr_node list) = String.concat ", " (List.map (fun (n : expr_node) -> string_of_expr n.d) l) in
   match e with
-  | Literal lit -> "Literal " ^ string_of_literal lit
-  | Identifier id -> "Identifier " ^ id
-  | Let (ids,_, e) -> "Let (" ^ String.concat ", " ids ^ ", " ^ string_of_expr e.d ^ ")"
-  | Assign (lv, n) -> "Assign (" ^ string_of_lvalue lv ^ ", " ^ string_of_expr n.d ^ ")"
+  | Literal lit -> string_of_literal lit
+  | Identifier id -> id
+  | Read lv -> "*" ^ string_of_lvalue lv
+  | Binop (op, e1, `Single e2) -> operand e1 ^ " " ^ binop_symbol op ^ " " ^ operand e2
+  | Binop (op, e1, `List l) -> operand e1 ^ " " ^ binop_symbol op ^ " [" ^ list l ^ "]"
+  | Unop (op, e') -> string_of_unop op ^ operand e'
+  | Index (e', idx) -> operand e' ^ "[" ^ string_of_index idx ^ "]"
+  | Indirect (e', field) -> operand e' ^ "." ^ field.d
+  | Call (f, args) -> "call " ^ f ^ "(" ^ list args ^ ")"
+  | Tuple [] -> "()"
   | _ -> "..."
 
 and string_of_lvalue (lv : lvalue) : string =
   match lv with
-  | Reg id -> "Reg " ^ id
-  | Indexed (lv, idx) -> "Indexed (" ^ string_of_lvalue lv ^ ", " ^ string_of_index idx ^ ")"
-  | Indirected (lv, id) -> "Indirected (" ^ string_of_lvalue lv ^ ", " ^ id.d ^ ")"
+  | Reg id -> id
+  | Indexed (lv, idx) -> string_of_lvalue lv ^ "[" ^ string_of_index idx ^ "]"
+  | Indirected (lv, id) -> string_of_lvalue lv ^ "." ^ id.d
 
 and string_of_index (idx : index) : string =
   match idx with
-  | Single e -> "Single (" ^ string_of_expr e.d ^ ")"
-  | Range (e1, e2) -> "Range (" ^ string_of_expr e1.d ^ ", " ^ string_of_expr e2.d ^ ")"
+  | Single e -> string_of_expr e.d
+  | Range (e1, e2) -> string_of_expr e1.d ^ " +: " ^ string_of_expr e2.d
 
 and string_of_data_type (dtype : data_type) : string =
   match dtype with
-  | `Logic -> "Logic"
-  | `Array (d,n) ->
-    let n' = match n with
-      | ParamEnv.Concrete n -> string_of_int n
-      | ParamEnv.Param _ -> "Param"
+  | `Logic -> "logic"
+  | `Array _ ->
+    let rec dims (dt : data_type) =
+      match dt with
+      | `Array (d, n) -> let (base, ns) = dims d in (base, n :: ns)
+      | base -> (base, [])
     in
-    "Array[" ^ n' ^ "] (" ^ string_of_data_type d ^ ")"
-  | `Variant (_, (id_opt_list)) ->
-      "Variant (" ^ String.concat ", " (List.map (fun {d = (id, dt_opt, val_opt); _} ->
-        match (dt_opt, val_opt) with
-        | (Some dt, None) -> id ^ ": " ^ string_of_data_type dt
-        | (None, Some lit) -> id ^ ": " ^ string_of_literal lit
-        | (Some dt, Some lit) -> id ^ ": " ^ string_of_data_type dt ^ " = " ^ string_of_literal lit
-        | (None, None) -> id) id_opt_list) ^ ")"
+    let (base, ns) = dims dtype in
+    let dim n = match n with
+      | ParamEnv.Concrete v -> "[" ^ string_of_int v ^ "]"
+      | ParamEnv.Param p -> "[" ^ p ^ "]"
+    in
+    string_of_data_type base ^ String.concat "" (List.map dim ns)
+  | `Variant (dt_opt, ctors) ->
+    let ctor {d = (id, dt_opt, val_opt); _} =
+      match dt_opt, val_opt with
+      | Some dt, _ -> id ^ "(" ^ string_of_data_type dt ^ ")"
+      | None, Some lit -> id ^ " = " ^ string_of_literal lit
+      | None, None -> id
+    in
+    let repr = match dt_opt with Some dt -> string_of_data_type dt ^ " " | None -> "" in
+    "enum " ^ repr ^ "{ " ^ String.concat ", " (List.map ctor ctors) ^ " }"
   | `Record fields ->
-      "Record (" ^ String.concat ", " (List.map (fun {d = (field_name, field_type); _} ->
-        field_name ^ ": " ^ string_of_data_type field_type) fields) ^ ")"
-  | `Tuple dt_list ->
-    (
-      match dt_list with
-      | [] -> "Void"
-      | _ ->
-        "Tuple (" ^ String.concat ", " (List.map string_of_data_type dt_list) ^ ")"
-    )
-  | `Opaque id -> "Opaque " ^ id
+    "struct { " ^ String.concat ", " (List.map (fun {d = (field_name, field_type); _} ->
+      field_name ^ " : " ^ string_of_data_type field_type) fields) ^ " }"
+  | `Tuple dt_list -> "(" ^ String.concat ", " (List.map string_of_data_type dt_list) ^ ")"
+  | `Opaque id -> id
+  | `Named (name, []) -> name
   | `Named (name, params) ->
-      let params_str = String.concat ", " (List.map (function
-        | IntParamValue v -> string_of_int v
-        | TypeParamValue dt -> string_of_data_type dt) params) in
-      "Named (" ^ name ^ ", [" ^ params_str ^ "])"
-and string_of_data_type_opt (dtype_opt : data_type option) : string =
-  match dtype_opt with
-  | Some dtype -> string_of_data_type dtype
-  | None -> "None"
+    let param = function
+      | IntParamValue v -> string_of_int v
+      | TypeParamValue dt -> string_of_data_type dt
+    in
+    name ^ "<" ^ String.concat ", " (List.map param params) ^ ">"
 
 and string_of_literal (lit : literal) : string =
+  let digits l = String.concat "" (List.rev_map string_of_digit l) in
   match lit with
-  | Binary (n, bits) -> "Binary (" ^ string_of_int n ^ ", [" ^ String.concat ";" (List.map string_of_digit bits) ^ "])"
-  | Decimal (n, digits) -> "Decimal (" ^ string_of_int n ^ ", [" ^ String.concat ";" (List.map string_of_digit digits) ^ "])"
-  | Hexadecimal (n, hexits) -> "Hexadecimal (" ^ string_of_int n ^ ", [" ^ String.concat ";" (List.map string_of_digit hexits) ^ "])"
-  | WithLength (n, v) -> "WithLength (" ^ string_of_int n ^ ", " ^ string_of_int v ^ ")"
-  | NoLength v -> "NoLength " ^ string_of_int v
+  | Binary (n, bits) -> Printf.sprintf "%d'b%s" n (digits bits)
+  | Decimal (n, ds) -> Printf.sprintf "%d'd%s" n (digits ds)
+  | Hexadecimal (n, hs) -> Printf.sprintf "%d'h%s" n (digits hs)
+  | WithLength (n, v) -> Printf.sprintf "%d'd%d" n v
+  | NoLength v -> string_of_int v
 
 let sub_ep_index (ep: message_specifier) (index: int) (id : identifier) : message_specifier =
   let is_array = String.contains ep.endpoint '[' && String.contains ep.endpoint ']'in

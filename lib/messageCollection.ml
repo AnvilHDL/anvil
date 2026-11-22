@@ -113,13 +113,16 @@ let create (channels : channel_def ast_node list)
           (* these should have been checked earlier *)
           assert ((message_sync_mode_allowed msg.send_sync) && (message_sync_mode_allowed msg.recv_sync));
           let msg_dir = get_message_direction msg.dir endpoint.dir in
-          (endpoint, ParamConcretise.concretise_message endpoint.channel_class cc.params endpoint.channel_params msg, msg_dir)
+          let msg = Except.with_span span (fun () ->
+            ParamConcretise.concretise_message endpoint.channel_class cc.params endpoint.channel_params msg) in
+          (endpoint, msg, msg_dir)
         in List.map msg_map cc.messages
     | None ->
-        raise (Except.TypeError [
-          Text (Printf.sprintf "Channel class %s not found" endpoint.channel_class);
-          Except.codespan_local span
-        ])
+        let classes = List.map (fun (cc : channel_class_def) -> (cc.name, "channel class")) channel_classes in
+        raise (Except.TypeError (
+          Text (Printf.sprintf "no channel class named `%s`" endpoint.channel_class)
+          :: Except.codespan_local span
+          :: Except.did_you_mean endpoint.channel_class classes))
   in
   (* override the user-specified foreign in args *)
   (* if its array of channels create ep instances appended with ep[i] for the messages *)

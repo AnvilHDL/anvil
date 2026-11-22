@@ -34,13 +34,19 @@ let rec data_type_size (type_defs : t) (macro_defs : macro_def list) (dtype : da
             | None ->
                 match ParamEnv.get_opt (Param param_name) with
                 | Some value -> value
-                | None -> raise (TypeError [Text ("Unknown parameter " ^ param_name)])
+                | None ->
+                  let consts = List.map (fun (m : macro_def) -> (m.id, "constant")) macro_defs in
+                  raise (TypeError (Text (Printf.sprintf "no parameter or constant named `%s`" param_name)
+                    :: Except.did_you_mean param_name consts))
       in
       (data_type_size type_defs macro_defs dtype') * n_concrete
   | `Named (type_name, params) ->
       let type_def = match Utils.StringMap.find_opt type_name type_defs with
       | Some type_def -> type_def
-      | None -> raise (TypeError [Text ("Unknown Datatype: " ^ type_name)])
+      | None ->
+        let types = Utils.StringMap.bindings type_defs |> List.map (fun (n, _) -> (n, "type")) in
+        raise (TypeError (Text (Printf.sprintf "no type named `%s`" type_name)
+          :: Except.did_you_mean type_name types))
       in
       ParamConcretise.concretise_dtype type_name type_def.params params type_def.body |> data_type_size type_defs macro_defs
   | `Variant (dt,vlist) as var ->
@@ -111,7 +117,10 @@ let data_type_index (type_defs : t) (macro_defs : macro_def list) (expr_eval : e
               | Literal n, ParamEnv.Concrete n_val ->
                   let n_int = literal_eval n in
                   if n_int >= n_val then
-                    raise (TypeError [Text ("Index out of bounds: " ^ string_of_int n_int ^ " for array of size " ^ string_of_int n_val); Except.codespan_local e.span])
+                    raise (TypeError [
+                      Text (Printf.sprintf "index %d is out of bounds" n_int);
+                      Label (None, e.span, Printf.sprintf "valid indices are 0 to %d" (n_val - 1))
+                    ])
                   else ()
               | _ -> ()
             end;
@@ -125,9 +134,15 @@ let data_type_index (type_defs : t) (macro_defs : macro_def list) (expr_eval : e
                   let st = literal_eval s in
                   let off_sz = literal_eval of_sz in
                   if st + off_sz > sz then
-                      raise (TypeError [Text ("Index out of bounds: " ^ string_of_int st ^ " + " ^ string_of_int off_sz ^ " > " ^ string_of_int sz); Except.codespan_local e.span])
+                      raise (TypeError [
+                        Text (Printf.sprintf "range `%d +: %d` is out of bounds" st off_sz);
+                        Label (None, e.span, Printf.sprintf "valid indices are 0 to %d" (sz - 1))
+                      ])
                   else if st >= sz then
-                    raise (TypeError [Text ("Index out of bounds: " ^ string_of_int st ^ " >= " ^ string_of_int sz); Except.codespan_local e.span])
+                    raise (TypeError [
+                      Text (Printf.sprintf "index %d is out of bounds" st);
+                      Label (None, e.span, Printf.sprintf "valid indices are 0 to %d" (sz - 1))
+                    ])
                   else ()
               | _ -> ()
             end;

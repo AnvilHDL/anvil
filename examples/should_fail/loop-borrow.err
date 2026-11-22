@@ -10,23 +10,26 @@ warning: The offset is not a constant value for mem, borrowing full range
 16 |             send endp.read_resp(*mem[*rd_addr])>>
    |                                 ^^^^^^^^^^^^^^
 
-warning: In send: Invalid data type for message endp: expected Array[8] (Logic) but got Named (byte, [])
+warning: mismatched types in message `endp.read_resp`
   --> should_fail/loop-borrow.anvil:16:13
    |
 16 |             send endp.read_resp(*mem[*rd_addr])>>
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `logic[8]`, found `byte`
+   = note: both types are 8 bits wide, so the value is converted bit for bit
 
-warning: In assignment: Invalid data type for Indexed (Reg mem, Single (Literal Binary (1, [0]))): expected Named (byte, []) but got Array[8] (Logic)
+warning: mismatched types in assignment to `mem[1'b0]`
   --> should_fail/loop-borrow.anvil:22:13
    |
 22 |             set mem[1'b0] := 8'd0 >>
-   |             ^^^^^^^^^^^^^^^^^^^^^
+   |             ^^^^^^^^^^^^^^^^^^^^^ expected `byte`, found `logic[8]`
+   = note: both types are 8 bits wide, so the value is converted bit for bit
 
-warning: In send: Invalid data type for message endp: expected Array[1] (Logic) but got Logic
+warning: mismatched types in message `endp.write_resp`
   --> should_fail/loop-borrow.anvil:23:13
    |
 23 |             send endp.write_resp(1)
-   |             ^^^^^^^^^^^^^^^^^^^^^^^
+   |             ^^^^^^^^^^^^^^^^^^^^^^^ expected `logic[1]`, found `logic`
+   = note: both types are 1 bit wide, so the value is converted bit for bit
 
 error: Static sync mode mismatch between endp@read_req and endp@read_req (actual gap = 1048576 > expected gap 2)!
   --> should_fail/loop-borrow.anvil:14:24

@@ -1,2 +1,7 @@
-error: Expected 1 parameter but got 0 in ch
+error: `ch` takes 1 parameter but 0 were given
+  --> should_fail/param-channel-too-few.anvil:14:9
+   |
+14 |     chan e_le -- e_ri : ch<>;
+   |         ^^^^^^^^^^^^^^^^^^^^
+   = note: `ch` is declared with `<n : int>`
 

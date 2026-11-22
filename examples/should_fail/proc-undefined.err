@@ -1,4 +1,4 @@
-error: Process 'child' not found!
+error: no process named `child`
  --> should_fail/proc-undefined.anvil:2:11
   |
 2 |     spawn child ();

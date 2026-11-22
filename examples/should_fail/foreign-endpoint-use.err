@@ -1,6 +1,11 @@
-error: Endpoint ch_in not owned by the process
+error: endpoint `ch_in` cannot be used in this process
   --> should_fail/foreign-endpoint-use.anvil:17:9
    |
 17 |         send ch_in.res(*x) >>
-   |         ^^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^ `ch_in` is used here
+  --> should_fail/foreign-endpoint-use.anvil:14:11
+   |
+14 |     spawn foo(ch_in);
+   |           ^^^^^^^^^^ `ch_in` is passed to `foo` here
+   = note: an endpoint passed to `spawn` belongs to the spawned process
 

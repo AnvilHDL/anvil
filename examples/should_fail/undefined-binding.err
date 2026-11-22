@@ -1,4 +1,4 @@
-error: Undefined identifier: a
+error: no value named `a` in this scope
  --> should_fail/undefined-binding.anvil:3:9
   |
 3 |         a

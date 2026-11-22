@@ -1,93 +1,57 @@
 open Lang
 
 module DTypeCheck = struct
-  let warn msg span _file_name =
-    Except.warn [Text msg; Except.codespan_local span]
+  let bits n = if n = 1 then "1 bit" else Printf.sprintf "%d bits" n
 
-  let type_error msg span =
-    raise (Except.TypeError [Text msg; Except.codespan_local span])
+  let size typedefs macro_defs span dtype =
+    Except.with_span span (fun () ->
+      try TypedefMap.data_type_size typedefs macro_defs dtype
+      with Failure _ | Not_found | Invalid_argument _ ->
+        raise (Except.TypeError [
+          Text (Printf.sprintf "cannot determine the size of `%s`" (string_of_data_type dtype))
+        ]))
 
+  (* Phrases naming where a type check happens, completing "mismatched types ...". *)
+  let fmt_assign lval = Printf.sprintf "in assignment to `%s`" (string_of_lvalue lval)
+  let fmt_func_arg func_name arg_name = Printf.sprintf "for argument `%s` of `%s`" arg_name func_name
+  let fmt_binop op = Printf.sprintf "in `%s`" (binop_symbol op)
+  let fmt_send (msg_spec : message_specifier) = Printf.sprintf "in message `%s.%s`" msg_spec.endpoint msg_spec.msg
+  let fmt_record_field field_name = Printf.sprintf "for field `%s`" field_name
+  let fmt_let_binding ident = Printf.sprintf "for `%s`" ident
+  let fmt_let = "in `let`"
 
-  let get_size typedefs macro_defs dtype =
-    try Some (TypedefMap.data_type_size typedefs macro_defs dtype)
-    with _ -> None
-
-  let fmt_mismatch ~context ~expected ~got =
-    Printf.sprintf "%s: expected %s but got %s"
-      context (string_of_data_type expected) (string_of_data_type got)
-
-  let fmt_mismatch_opt ~context ~expected ~got =
-    Printf.sprintf "%s: expected %s but got %s"
-      context (string_of_data_type_opt expected) (string_of_data_type got)
-
-  let fmt_size_mismatch ~context ~expected ~got ~expected_size ~got_size =
-    Printf.sprintf "%s: expected %s (size %d) but got %s (size %d)"
-      context (string_of_data_type expected) expected_size
-      (string_of_data_type got) got_size
-
-  (** Format assignment type error *)
-  let fmt_assign lval expected got =
-    fmt_mismatch
-      ~context:(Printf.sprintf "In assignment: Invalid data type for %s" (string_of_lvalue lval))
-      ~expected ~got
-
-  let fmt_func_arg func_name arg_name expected got =
-    fmt_mismatch
-      ~context:(Printf.sprintf "In function call %s: Invalid argument type for %s" func_name arg_name)
-      ~expected ~got
-
-  let fmt_binop op dtype1 dtype2 =
-    Printf.sprintf "In binary operation %s: Invalid argument types: %s and %s"
-      (string_of_binop op) (string_of_data_type dtype1) (string_of_data_type dtype2)
-
-  let fmt_send endpoint expected got =
-    fmt_mismatch
-      ~context:(Printf.sprintf "In send: Invalid data type for message %s" endpoint)
-      ~expected ~got
-
-  let fmt_record_field field_name expected got =
-    fmt_mismatch
-      ~context:(Printf.sprintf "In record construction: Invalid data type for field %s" field_name)
-      ~expected ~got
-
-  let fmt_let_binding ident expected got =
-    fmt_mismatch_opt
-      ~context:(Printf.sprintf "Invalid data type for %s" ident)
-      ~expected ~got
-
-  let fmt_simple got =
-    Printf.sprintf "Invalid data type: %s" (string_of_data_type got)
-
-  let check ~typedefs ~macro_defs ~err_string ~expected ~got ~span ~file_name ~weak_mode =
+  let check ~typedefs ~macro_defs ~context ~label ~expected ~got ~span ~weak_mode =
     if expected = got then
       ()
     else
-      let sz_expected = get_size typedefs macro_defs expected in
-      let sz_got = get_size typedefs macro_defs got in
-      match sz_expected, sz_got with
-      | Some se, Some sg when se <> sg ->
-        (* sizes don't match - always raise error *)
-        let size_err = fmt_size_mismatch
-          ~context:"Type size mismatch"
-          ~expected ~got ~expected_size:se ~got_size:sg in
-        type_error size_err span
-      | Some _, Some _ ->
-        if weak_mode then
-          warn err_string span file_name
-        else
-          type_error err_string span
-      | _ ->
-        raise (Except.TypeError [
-          Text ("Cannot determine type size for " ^ (string_of_data_type expected) ^ " or " ^ (string_of_data_type got));
-          Except.codespan_local span
+      let exp_s = string_of_data_type expected and got_s = string_of_data_type got in
+      let label = match label with
+        | Some l -> l
+        | None -> Printf.sprintf "expected `%s`, found `%s`" exp_s got_s
+      in
+      let se = size typedefs macro_defs span expected
+      and sg = size typedefs macro_defs span got in
+      let head = [Except.Text ("mismatched types " ^ context); Except.Label (None, span, label)] in
+      if se <> sg then
+        raise (Except.TypeError (head @ [
+          Note (Printf.sprintf "`%s` is %s wide but `%s` is %s wide" exp_s (bits se) got_s (bits sg))
+        ]))
+      else if weak_mode then
+        Except.warn (head @ [
+          Note (Printf.sprintf "both types are %s wide, so the value is converted bit for bit" (bits se))
         ])
+      else
+        raise (Except.TypeError (head @ [
+          Note (Printf.sprintf "both types are %s wide" (bits se));
+          Help (Printf.sprintf "convert the value with a cast, e.g. `<(value) :: %s>`" exp_s)
+        ]))
 end
 
-let check_dtype err_string dtype1 dtype2 span file_name allow typedefs macro_defs =
+let check_dtype ?label context dtype1 dtype2 span _file_name allow typedefs macro_defs =
   match dtype1 with
   | Some dt1 ->
     DTypeCheck.check
       ~typedefs ~macro_defs
-      ~err_string ~expected:dt1 ~got:dtype2
-      ~span ~file_name ~weak_mode:allow
+      ~context ~label ~expected:dt1 ~got:dtype2
+      ~span ~weak_mode:allow
   | None -> ()

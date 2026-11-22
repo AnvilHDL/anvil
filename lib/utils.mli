@@ -156,3 +156,9 @@ val list_match_reorder : string list -> (string * 'a) list -> 'a list option
 
 (** Join two lists in cases where order doesn't matter. *)
 val list_unordered_join : 'a list -> 'a list -> 'a list
+
+(** Levenshtein distance between two strings. *)
+val edit_distance : string -> string -> int
+
+(** The candidate closest to a name, if one is close enough to be a likely typo. *)
+val closest_name : string -> string list -> string option

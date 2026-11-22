@@ -40,3 +40,26 @@ let list_unordered_join a b =
     a @ b
   else
     b @ a
+
+let edit_distance a b =
+  let la = String.length a and lb = String.length b in
+  let prev = Array.init (lb + 1) Fun.id and cur = Array.make (lb + 1) 0 in
+  for i = 1 to la do
+    cur.(0) <- i;
+    for j = 1 to lb do
+      let cost = if a.[i - 1] = b.[j - 1] then 0 else 1 in
+      cur.(j) <- min (min (prev.(j) + 1) (cur.(j - 1) + 1)) (prev.(j - 1) + cost)
+    done;
+    Array.blit cur 0 prev 0 (lb + 1)
+  done;
+  prev.(lb)
+
+let closest_name name candidates =
+  let limit = max 1 (String.length name / 3) in
+  List.filter (fun c -> c <> name) candidates
+  |> List.map (fun c -> (edit_distance name c, c))
+  |> List.filter (fun (d, _) -> d <= limit)
+  |> List.sort compare
+  |> function
+    | [] -> None
+    | (_, c) :: _ -> Some c

@@ -1,3 +1,6 @@
+(** Raises a type error if the number of parameter values does not match the parameters. *)
+val check_param_count : string -> Lang.param list -> Lang.param_value list -> unit
+
 (** Concretise the parameters in a process. This includes concretising the parameters
     used for spawning new processes, defining data types, or defining channel classes. *)
 val concretise_proc : string -> Lang.param_value list -> Lang.proc_def -> Lang.proc_def

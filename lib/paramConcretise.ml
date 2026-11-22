@@ -22,15 +22,7 @@ and concretise_dtype_params int_env type_env (dtype : data_type) : data_type =
   match dtype with
   | `Array (v, n) ->
     let base_type = concretise_dtype_params int_env type_env v in
-    let size = match concretise int_env n with
-      | Some s -> s
-      | None ->
-          Printf.eprintf "[ERROR] Failed to concretise array size parameter: %s\n"
-            (match n with
-             | ParamEnv.Concrete i -> Printf.sprintf "Concrete(%d)" i
-             | ParamEnv.Param p -> Printf.sprintf "Param(%s)" p);
-          failwith "Array size concretisation failed"
-    in
+    let size = Option.value (concretise int_env n) ~default:n in
     `Array (base_type, size)
   | `Named (ident, params) ->
     if params = [] then
@@ -69,17 +61,28 @@ and concretise_dtype_params int_env type_env (dtype : data_type) : data_type =
     `Tuple elems_dtypes'
   | _ -> dtype
 
-let build_param_envs context param_values params =
+let string_of_param (p : param) =
+  p.param_name ^ (match p.param_ty with IntParam -> " : int" | TypeParam -> " : type")
+
+let check_param_count context params param_values =
   let expected = List.length params
   and actual = List.length param_values in
-  if expected <> actual then
+  if expected <> actual then (
     let parameter_word = if expected = 1 then "parameter" else "parameters" in
+    let declared =
+      if params = [] then Printf.sprintf "`%s` has no parameters" context
+      else Printf.sprintf "`%s` is declared with `<%s>`" context
+          (String.concat ", " (List.map string_of_param params))
+    in
     raise (Except.TypeError [
-      Text (Printf.sprintf
-        "Expected %d %s but got %d in %s"
-        expected parameter_word actual context)
+      Text (Printf.sprintf "`%s` takes %d %s but %d %s given"
+        context expected parameter_word actual (if actual = 1 then "was" else "were"));
+      Note declared
     ])
-  else ();
+  )
+
+let build_param_envs context param_values params =
+  check_param_count context params param_values;
   let int_env = create_env ()
   and type_env = create_env () in
   let vals_s = List.to_seq param_values
@@ -93,15 +96,21 @@ let build_param_envs context param_values params =
           add_value p.param_name n int_env
         | TypeParamValue t, TypeParam ->
           add_value p.param_name t type_env
-        | _ -> raise (Except.TypeError [Text ("Invalid parameter: " ^ p.param_name)])
+        | _ ->
+          let kind = match p.param_ty with IntParam -> "an integer" | TypeParam -> "a type" in
+          raise (Except.TypeError [
+            Text (Printf.sprintf "parameter `%s` of `%s` must be %s" p.param_name context kind);
+            Note (Printf.sprintf "`%s` is declared with `<%s>`" context
+              (String.concat ", " (List.map string_of_param params)))
+          ])
       );
   (int_env, type_env)
 
-let concretise_proc context param_values proc =
+let concretise_proc _context param_values proc =
   if proc.params = [] then
     proc
   else (
-    let (int_param_env, type_param_env) = build_param_envs context param_values proc.params in
+    let (int_param_env, type_param_env) = build_param_envs proc.name param_values proc.params in
     let args = List.map
       (fun ({d = a; def_span; action_event; span} : endpoint_def ast_node) ->
         let params = concretise_params int_param_env type_param_env a.channel_params in

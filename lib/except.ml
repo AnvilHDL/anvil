@@ -43,3 +43,22 @@ let take_warnings () =
   let w = List.rev !warnings in
   warnings := [];
   w
+
+(** Help naming the closest of [candidates], given as [(name, kind)] pairs. *)
+let did_you_mean name (candidates : (string * string) list) =
+  match Utils.closest_name name (List.map fst candidates) with
+  | None -> []
+  | Some c ->
+    let kind = List.assoc c candidates in
+    let article = match kind.[0] with 'a' | 'e' | 'i' | 'o' | 'u' -> "an" | _ -> "a" in
+    [Help (Printf.sprintf "%s %s with a similar name exists: `%s`" article kind c)]
+
+(** Runs [f], adding [span] to a type error that has no source location. *)
+let with_span span f =
+  try f () with
+  | TypeError msg when not (List.exists (function Codespan _ | Label _ -> true | _ -> false) msg) ->
+    let msg = match msg with
+      | (Text _ as head) :: rest -> head :: codespan_auto span :: rest
+      | _ -> codespan_auto span :: msg
+    in
+    raise (TypeError msg)

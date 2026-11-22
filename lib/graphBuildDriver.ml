@@ -58,21 +58,18 @@ let build_proc (config : Config.compile_config) sched module_name param_values
       ParamConcretise.concretise_proc module_name param_values proc
   in
   let macro_defs_extended =
-    if List.length param_values <> List.length proc.params then
-      raise_fatal (Except.TypeError [Text (Printf.sprintf "Expected %d parameters but got %d in %s instantation"
-        (List.length proc.params) (List.length param_values) module_name)])
-    else
-      List.fold_left2 (fun acc (p : Lang.param) (pval : param_value) ->
-        match p.param_ty, pval with
-        | IntParam, IntParamValue v ->
-          {
-            id = p.param_name;
-            value = v;
-            span = p.span;
-          } :: acc
-        | _ -> acc
-      ) ci'.macro_defs proc.params param_values 
-    in
+    ParamConcretise.check_param_count proc.name proc.params param_values;
+    List.fold_left2 (fun acc (p : Lang.param) (pval : param_value) ->
+      match p.param_ty, pval with
+      | IntParam, IntParamValue v ->
+        {
+          id = p.param_name;
+          value = v;
+          span = p.span;
+        } :: acc
+      | _ -> acc
+    ) ci'.macro_defs proc.params param_values
+  in
   let typedefs_extended =
     List.fold_left2 (fun acc (p : Lang.param) (pval : param_value) ->
       match p.param_ty, pval with
@@ -98,6 +95,11 @@ let build_proc (config : Config.compile_config) sched module_name param_values
   | Native body ->
     let msg_collection = MessageCollection.create body.channels
                                       proc.args body.spawns ci.channel_classes proc.params param_values in
+    let size = DataTypeCheck.DTypeCheck.size ci.typedefs ci.macro_defs in
+    List.iter (fun (reg : reg_def ast_node) -> ignore (size reg.span reg.d.d_type)) body.regs;
+    List.iter (fun ((_, msg, _) : endpoint_def * message_def * message_direction) ->
+      List.iter (fun (st : sig_type_chan_local) -> ignore (size msg.span st.dtype)) msg.sig_types
+    ) msg_collection.local_messages;
     let spawns =
     List.map (fun (s : spawn_def ast_node) ->
       let module_name = BuildScheduler.add_proc_task sched ci.file_name s.span s.d.proc s.d.compile_params in

@@ -1,6 +1,11 @@
-error: Endpoint ep not owned by the process
+error: endpoint `ep` cannot be used in this process
   --> should_fail/foreign-arg-use.anvil:16:9
    |
 16 |         send ep.res(*x) >>
-   |         ^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^ `ep` is used here
+  --> should_fail/foreign-arg-use.anvil:13:11
+   |
+13 |     spawn foo(ep);
+   |           ^^^^^^^ `ep` is passed to `foo` here
+   = note: an endpoint passed to `spawn` belongs to the spawned process
 

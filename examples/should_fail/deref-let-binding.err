@@ -1,6 +1,11 @@
-error: Undefined register a
+error: `a` is not a register
  --> should_fail/deref-let-binding.anvil:6:18
   |
 6 |         set r := *a + 8'd1
-  |                  ^^
+  |                  ^^ `*` reads a register, but `a` is a value
+ --> should_fail/deref-let-binding.anvil:5:9
+  |
+5 |         let a = *r;
+  |         ^^^^^^^^^^ `a` is bound here
+  = help: use the value directly by writing `a` instead of `*a`
 

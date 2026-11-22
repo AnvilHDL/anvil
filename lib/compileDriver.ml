@@ -19,9 +19,7 @@ let _parse config =
   (
     try parse_recursive cunits (ref Utils.StringSet.empty) config toplevel_filename
     with
-      | Except.TypeError msg ->
-        (Except.Text "Type error:")::msg
-          |> raise_compile_error None
+      | Except.TypeError msg -> raise_compile_error None msg
   );
   !cunits
 
@@ -119,12 +117,11 @@ let _check config cunits =
         let open Except in
         match proc_file_opt with
         | None ->
-          let msg_text = Printf.sprintf "Process '%s' not found!" task.proc_name in
-          raise_compile_error None
-            [
-              Text msg_text;
-              codespan_in task.file_name task.codespan
-            ]
+          let procs = Utils.StringMap.bindings proc_map |> List.map (fun (name, _) -> (name, "process")) in
+          raise_compile_error None (
+            Text (Printf.sprintf "no process named `%s`" task.proc_name)
+            :: codespan_in task.file_name task.codespan
+            :: did_you_mean task.proc_name procs)
         | Some (proc, file_name) ->
           let cunit = let open Lang in
             (* hacky *)
@@ -134,7 +131,10 @@ let _check config cunits =
             func_defs = all_func_defs;
             macro_defs = all_macro_defs} in
           let graph_collection = (
-            match GraphBuildDriver.build config sched task.module_name task.param_values cunit
+            let build () = GraphBuildDriver.build config sched task.module_name task.param_values cunit in
+            match
+              if task.codespan = Lang.code_span_dummy then build ()
+              else Except.with_span task.codespan build
             with
             | res -> res
             | exception exc ->
@@ -239,4 +239,6 @@ let compile out config =
   let cunits = _parse config in
   let graph_collection_queue = _check config cunits in
   if config.just_check then ()
-  else _codegen config out cunits graph_collection_queue
+  else
+    try _codegen config out cunits graph_collection_queue
+    with e -> raise (convert_intermediate_anvil_errors e None)

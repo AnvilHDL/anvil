@@ -1,6 +1,8 @@
-error: Mismatching message direction!
+error: cannot receive `req` on `ch_out`
   --> should_fail/message-bad-direction.anvil:18:17
    |
 18 |         let y = recv ch_out.req >>
-   |                 ^^^^^^^^^^^^^^^
+   |                 ^^^^^^^^^^^^^^^ `ch_out` sends `req`
+   = note: `req` is declared `left` in `ch`, so the right endpoint sends it and the left endpoint receives it
+   = note: `ch_out` is the right endpoint
 

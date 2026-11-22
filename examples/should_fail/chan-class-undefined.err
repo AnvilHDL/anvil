@@ -1,4 +1,4 @@
-error: Channel class ch not found
+error: no channel class named `ch`
  --> should_fail/chan-class-undefined.anvil:1:11
   |
 1 | proc main(endp : left ch) {
