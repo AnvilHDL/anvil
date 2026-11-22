@@ -1,0 +1,15 @@
+// A value derived from a received message is sent after the message has expired.
+chan ch {
+    left req : (logic[8]@#1),
+    right res : (logic[8]@#1)
+}
+
+proc inc(ep : left ch) {
+    loop {
+        let x = recv ep.req >>
+        let inc_x = x + 8'd1;
+        cycle 1 >>
+        send ep.res (inc_x) >>
+        cycle 1
+    }
+}

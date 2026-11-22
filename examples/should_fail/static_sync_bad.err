@@ -1,0 +1,6 @@
+Compilation failed!
+Borrow checking failed:
+Static sync mode mismatch between ep@req and ep@req (actual gap = 1 < expected gap 3)!
+should_fail/static_sync_bad.anvil:7:17:
+      7|         let r = recv ep.req >>
+       |                 ^^^^^^^^^^^

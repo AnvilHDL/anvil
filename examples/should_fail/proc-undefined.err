@@ -1,0 +1,5 @@
+Compilation failed!
+Process 'child' not found!
+should_fail/proc-undefined.anvil:2:11:
+      2|     spawn child ();
+       |           ^^^^^^^^

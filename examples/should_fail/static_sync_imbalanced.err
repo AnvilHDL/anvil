@@ -1,0 +1,5 @@
+Compilation failed!
+Static sync mode must be symmetric!
+should_fail/static_sync_imbalanced.anvil:2:5:
+      2|     left req: (logic[8]@#1) @#1-@#2
+       |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

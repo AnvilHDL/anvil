@@ -1,0 +1,13 @@
+// `cycle` is given a process parameter instead of an integer literal.
+proc delay<n : int>() {
+    loop {
+        cycle n >> dprint "tick" ()
+    }
+}
+
+proc cycle_param() {
+    spawn delay<2>();
+    loop {
+        cycle 1
+    }
+}

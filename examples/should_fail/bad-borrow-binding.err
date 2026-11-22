@@ -1,0 +1,10 @@
+Compilation failed!
+Borrow checking failed:
+Attempted assignment to a borrowed register!
+should_fail/bad-borrow-binding.anvil:6:9:
+      6|         set r := 1'b0 >>
+       |         ^^^^^^^^^^^^^
+Borrowed at:
+should_fail/bad-borrow-binding.anvil:5:18:
+      5|         let rv = *r;
+       |                  ^^

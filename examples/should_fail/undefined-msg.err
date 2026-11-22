@@ -1,0 +1,6 @@
+Compilation failed!
+Event graph error:
+Endpoint ch not owned by the process
+should_fail/undefined-msg.anvil:3:20:
+      3|         cycle 1 >> send ch.req (1'b0)
+       |                    ^^^^^^^^^^^^^^^^^^

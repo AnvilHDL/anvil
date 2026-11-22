@@ -1,0 +1,6 @@
+Compilation failed!
+Type error:
+Channel class ch not found
+should_fail/chan-class-undefined.anvil:1:11:
+      1| proc main(endp : left ch) {
+       |           ^^^^^^^^^^^^^^

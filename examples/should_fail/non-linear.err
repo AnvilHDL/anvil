@@ -1,0 +1,10 @@
+Compilation failed!
+Borrow checking failed:
+Non-linearizable register assignment!
+should_fail/non-linear.anvil:5:36:
+      5|         if 1'b1 { set r1 := 4'd0 } else { set r1 := 4'd1 };
+       |                                    ^^^^^^^^^^^^^^^^^^^^^^^
+Conflicting with:
+should_fail/non-linear.anvil:6:9:
+      6|         set r1 := 4'd2
+       |         ^^^^^^^^^^^^^^

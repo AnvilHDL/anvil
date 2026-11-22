@@ -1,0 +1,10 @@
+Compilation failed!
+Borrow checking failed:
+Non-linearizable register assignment!
+should_fail/subreg-lt-bad.anvil:4:9:
+      4|         set cyc[0]:=*cyc[0] + 2'd1;
+       |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Conflicting with:
+should_fail/subreg-lt-bad.anvil:5:9:
+      5|         set cyc[0]:=*cyc[1] + 2'd2;
+       |         ^^^^^^^^^^^^^^^^^^^^^^^^^^

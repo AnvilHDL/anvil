@@ -1,0 +1,6 @@
+Compilation failed!
+Event graph error:
+Endpoint ch_in not owned by the process
+should_fail/foreign-endpoint-use.anvil:17:9:
+     17|         send ch_in.res(*x) >>
+       |         ^^^^^^^^^^^^^^^^^^

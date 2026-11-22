@@ -1,0 +1,10 @@
+Compilation failed!
+Borrow checking failed:
+Attempted assignment to a borrowed register!
+should_fail/send-loop-back.anvil:12:17:
+     12|                 set r := x
+       |                 ^^^^^^^^^^
+Borrowed at:
+should_fail/send-loop-back.anvil:18:21:
+     18|         send ch.res(*r) >>
+       |                     ^^

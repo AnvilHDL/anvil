@@ -1,0 +1,6 @@
+Compilation failed!
+Borrow checking failed:
+Static sync mode mismatch between ri@req and ri@req (actual gap = 2 > expected gap 1)!
+should_fail/sync-static-dyn-bad.anvil:19:9:
+     19|         send ri.req(*r) >>
+       |         ^^^^^^^^^^^^^^^

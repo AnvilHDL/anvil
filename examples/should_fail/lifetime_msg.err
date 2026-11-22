@@ -1,0 +1,6 @@
+Compilation failed!
+Borrow checking failed:
+Value does not live long enough in debug print!
+should_fail/lifetime_msg.anvil:9:9:
+      9|         dprint "Received %d" (a)
+       |         ^^^^^^^^^^^^^^^^^^^^^^^^

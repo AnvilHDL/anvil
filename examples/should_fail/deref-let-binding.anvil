@@ -1,0 +1,8 @@
+// `*` is applied to a let binding instead of a register.
+proc deref_let() {
+    reg r : logic[8];
+    loop {
+        let a = *r;
+        set r := *a + 8'd1
+    }
+}

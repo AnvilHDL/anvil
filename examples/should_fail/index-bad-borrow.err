@@ -1,0 +1,10 @@
+Compilation failed!
+Borrow checking failed:
+Attempted assignment to a borrowed register!
+should_fail/index-bad-borrow.anvil:7:9:
+      7|         set r := 4'd3 >>
+       |         ^^^^^^^^^^^^^
+Borrowed at:
+should_fail/index-bad-borrow.anvil:6:26:
+      6|         let a_select = a[*r+:5];
+       |                          ^^

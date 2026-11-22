@@ -1,0 +1,5 @@
+Compilation failed!
+Undefined message specified in delay pattern!
+should_fail/invalid-lifetime.anvil:2:3:
+      2|   left req : (logic@res)
+       |   ^^^^^^^^^^^^^^^^^^^^^^

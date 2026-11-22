@@ -1,0 +1,6 @@
+Compilation failed!
+Borrow checking failed:
+Value does not live long enough in debug print!
+should_fail/print-last-cycle-mut.anvil:9:9:
+      9|         dprint "x: %d" (x);
+       |         ^^^^^^^^^^^^^^^^^^

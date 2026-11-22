@@ -1,0 +1,15 @@
+[Warning] Value bound to unused is potentially not awaited!
+      3|     let unused = { cycle 1 >> 1'b1 };
+       |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[Warning] Value bound to unused is potentially not awaited!
+      3|     let unused = { cycle 1 >> 1'b1 };
+       |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[Warning] Value bound to unused is potentially not awaited!
+      3|     let unused = { cycle 1 >> 1'b1 };
+       |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Compilation failed!
+Borrow checking failed:
+Value does not live long enough in debug print!
+should_fail/bad-unused.anvil:7:7:
+      7|       dprint "Value is %d" (unused);
+       |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

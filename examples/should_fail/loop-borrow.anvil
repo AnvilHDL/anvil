@@ -19,7 +19,7 @@ proc memory(endp: left memory_ch) {
         else {
           if ready endp.write_req {
             let addr_data = recv endp.write_req >>
-            set mem[1'b0] := 1'b0 >>
+            set mem[1'b0] := 8'd0 >>
             send endp.write_resp(1)
           }
           else {cycle 1}

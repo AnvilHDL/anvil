@@ -1,0 +1,19 @@
+[Warning] Value bound to a is potentially not awaited!
+      7|         let a = recv ep.req;
+       |         ^^^^^^^^^^^^^^^^^^^
+[Warning] Value bound to a is potentially not awaited!
+      7|         let a = recv ep.req;
+       |         ^^^^^^^^^^^^^^^^^^^
+[Warning] Value bound to a is potentially not awaited!
+      7|         let a = recv ep.req;
+       |         ^^^^^^^^^^^^^^^^^^^
+Compilation failed!
+Borrow checking failed:
+Non-linearizable message use!
+should_fail/irrelevant_msg.anvil:7:17:
+      7|         let a = recv ep.req;
+       |                 ^^^^^^^^^^^
+Conflicting with:
+should_fail/irrelevant_msg.anvil:7:17:
+      7|         let a = recv ep.req;
+       |                 ^^^^^^^^^^^

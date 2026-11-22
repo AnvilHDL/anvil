@@ -1,0 +1,6 @@
+Compilation failed!
+Borrow checking failed:
+Lvalue index does not live long enough!
+should_fail/index-bad-borrow2.anvil:12:9:
+     12|         set r[req] := 1'b1 >>
+       |         ^^^^^^^^^^^^^^^^^^
