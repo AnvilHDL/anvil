@@ -431,7 +431,7 @@ and expr =
   | Let of identifier list * data_type option * expr_node
   | Join of expr_node * expr_node (** [a; b] *)
   | Wait of expr_node * expr_node (** [a => b] *)
-  | Cycle of int
+  | Cycle of int maybe_param (** a literal, a parameter or a constant *)
   | IfExpr of expr_node * expr_node * expr_node
   | TryRecv of identifier * recv_pack * expr_node * expr_node (** try recv *)
   | TrySend of send_pack * expr_node * expr_node (** try send *)
@@ -715,6 +715,10 @@ let rec substitute_expr_identifier (id: identifier) (value: expr_node) (idx : in
   let new_expr = match expr.d with
   | Identifier name when name = id ->
       value.d
+  | Cycle (ParamEnv.Param name) when name = id ->
+    (match value.d with
+     | Literal lit -> Cycle (ParamEnv.Concrete (literal_eval lit))
+     | _ -> expr.d)
   | Let (ids, dtype, e) ->
       if List.mem id ids then expr.d
       else Let (ids, dtype, substitute_expr_identifier id value idx e)

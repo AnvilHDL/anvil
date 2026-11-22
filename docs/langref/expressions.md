@@ -4,11 +4,17 @@
 
 ```
 cycle-expression ::= cycle { $digit }+
+                   | cycle $identifier
 ```
 
 The `cycle` expression evaluates to a unit value `()` delayed by a specified number
 of cycles. Its sole purpose is to introduce the specified delay.
 For example, `cycle 1` evaluates to `()` after one cycle.
+
+The number of cycles must be known at compile time. Besides an integer literal, it can
+be an integer parameter of the process, a `const`, or the variable of a `generate` loop.
+For example, in `proc delay<n : int>() { loop { cycle n } }`, the process spawned as
+`delay<3>` waits three cycles in each iteration.
 
 #### Wait
 

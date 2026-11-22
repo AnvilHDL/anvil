@@ -111,6 +111,29 @@ let message_of (graph : event_graph) (ci : cunit_info) (msg_spec : message_speci
     | _, Some msg -> msg
     | _ -> fail [Text (Printf.sprintf "invalid message `%s.%s`" ep_name msg_spec.msg); codespan_local span]
 
+(* The number of cycles in a `cycle`, resolved from a parameter or constant. *)
+let cycle_count (ci : cunit_info) (ctx : build_context) (n : int ParamEnv.maybe_param) span =
+  match n with
+  | ParamEnv.Concrete v -> v
+  | ParamEnv.Param p ->
+    match List.find_opt (fun (m : macro_def) -> m.id = p) ci.macro_defs with
+    | Some m -> m.value
+    | None ->
+      let open Except in
+      let msg = match Typing.context_lookup ctx.cg_lt_ctx p with
+        | Some binding ->
+          [
+            Text "the number of cycles must be known at compile time";
+            Label (None, span, Printf.sprintf "`%s` is a value computed at run time" p);
+            Label (None, binding.binding_def_span, Printf.sprintf "`%s` is bound here" p);
+            Note "`cycle` takes an integer literal, a parameter or a constant, e.g. `cycle 2` or `cycle N`"
+          ]
+        | None ->
+          Text (Printf.sprintf "no parameter or constant named `%s`" p) :: codespan_local span
+          :: did_you_mean p (List.map (fun (m : macro_def) -> (m.id, "constant")) ci.macro_defs)
+      in
+      raise_fatal (EventGraphError msg)
+
 (* Error for indexing a value of type [dtype] with [idx]. *)
 let bad_index (ci : cunit_info) (dtype : data_type) (idx : index) span =
   let open Except in
@@ -507,6 +530,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     graph.wires <- wires;
     Typing.immediate_data graph (Some msg_ack_port) `Logic ctx.current
   | Cycle n ->
+    let n = cycle_count ci ctx n e.span in
     let data = Typing.cycles_data graph n ctx.current in
     AstAnnotator.attach_event e ctx.current None (Some [DelayConst n]);
     data

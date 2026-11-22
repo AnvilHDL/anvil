@@ -1,0 +1,18 @@
+// `cycle` with a process parameter: the second thread prints every `n` cycles.
+proc cycle_param_sub<n : int>() {
+    reg t : logic[8];
+    loop {
+        set t := *t + 8'd1
+    }
+    loop {
+        dprint "t = %d" (*t) >>
+        cycle n
+    }
+}
+
+proc cycle_param() {
+    spawn cycle_param_sub<3>();
+    loop {
+        cycle 1
+    }
+}

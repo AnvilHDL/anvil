@@ -468,9 +468,13 @@ and expr_to_yojson (x: expr) = let result = match x with
       ("lhs", expr_node_to_yojson e1);
       ("rhs", expr_node_to_yojson e2)
     ]
-  | Cycle n -> [
+  | Cycle (ParamEnv.Concrete n) -> [
       ("type", str "cycle");
       ("cycles", int n)
+    ]
+  | Cycle (ParamEnv.Param p) -> [
+      ("type", str "cycle");
+      ("cycles_param", str p)
     ]
   | IfExpr (cond, then_br, else_br) -> [
       ("type", str "if_expr");

@@ -16,7 +16,7 @@ help: a file contains `proc`, `chan`, `type`, `struct`, `enum`, `func`, `const` 
 cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_CYCLE XOR
 
 expected a number of cycles after `cycle`
-help: write a fixed number of cycles, e.g. `cycle 3`
+help: the number of cycles is an integer literal, a parameter or a constant, e.g. `cycle 3` or `cycle N`
 
 # generate (i : start, end, step) and generate_seq
 cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE_SEQ LEFT_PAREN IDENT COLON XOR

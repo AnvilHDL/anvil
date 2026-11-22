@@ -543,9 +543,9 @@ expr:
 // | KEYWORD_RECV; recv_pack = recv_pack; KEYWORD_THEN; succ_expr = node(expr)
 //   { Lang.TryRecv (recv_pack, succ_expr, Lang.Tuple []) }
 | KEYWORD_CYCLE; n = INT
-  { Lang.Cycle n }
+  { Lang.Cycle (ParamEnv.Concrete n) }
 | KEYWORD_CYCLE; name = IDENT
-  { ParserHelper.cycle_param_unsupported name $loc(name) }
+  { Lang.Cycle (ParamEnv.Param name) }
 | e = node(expr); LEFT_BRACKET; ind = index; RIGHT_BRACKET
   { Lang.Index (e, ind) }
 | e = node(expr); PERIOD; fieldname = node(IDENT)
