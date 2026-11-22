@@ -2,6 +2,15 @@ open Lang
 
 exception LiteralConversionError of Except.error_message
 
+(* Error for `cycle` with a parameter. *)
+let cycle_param_unsupported (name : string) ((st, ed) : Lexing.position * Lexing.position) =
+  raise (Except.UnimplementedError [
+    Text "`cycle` with a parameter is not supported yet";
+    Label (None, {st; ed}, Printf.sprintf "`%s` is not an integer literal" name);
+    Note "support for parameters in `cycle` is planned";
+    Help "use a fixed number of cycles for now, e.g. `cycle 2`"
+  ])
+
 let bit_literal_of_string (s : string) : literal =
   let spl = String.split_on_char 'b' s in
   let base =  List.nth spl 1 |>

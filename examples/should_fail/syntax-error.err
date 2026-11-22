@@ -1,6 +1,6 @@
-error: Syntax error
+error: unexpected keyword `loop`
  --> should_fail/syntax-error.anvil:3:5
   |
 3 |     loop {
-  |     ^^^^
+  |     ^^^^ expected `;` or `[`
 

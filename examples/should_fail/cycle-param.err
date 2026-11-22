@@ -1,6 +1,8 @@
-error: Syntax error
+error: `cycle` with a parameter is not supported yet
  --> should_fail/cycle-param.anvil:4:15
   |
 4 |         cycle n >> dprint "tick" ()
-  |               ^
+  |               ^ `n` is not an integer literal
+  = note: support for parameters in `cycle` is planned
+  = help: use a fixed number of cycles for now, e.g. `cycle 2`
 

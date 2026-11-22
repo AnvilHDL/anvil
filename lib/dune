@@ -1,7 +1,15 @@
-(menhir (explain true)
+(menhir (flags --table --inspection) (explain true)
  (modules parser))
 
 (ocamllex lexer)
+
+; Syntax error messages keyed by parser state.
+(rule
+ (targets parserMessages.ml)
+ (deps parserMessages.messages parser.mly)
+ (action
+  (with-stdout-to %{targets}
+   (run menhir --compile-errors %{deps}))))
 
 (library
  (name anvil)

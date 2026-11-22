@@ -1,0 +1,90 @@
+# Syntax error messages by parser state; ANVIL_PARSER_STATE=1 prints the state.
+
+# top level
+cunit: XOR
+cunit: KEYWORD_ENUM IDENT LEFT_BRACE IDENT RIGHT_BRACE XOR
+cunit: KEYWORD_PROC IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE RIGHT_BRACE XOR
+cunit: KEYWORD_CONST IDENT EQUAL INT SEMICOLON XOR
+cunit: KEYWORD_IMPORT STR_LITERAL XOR
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE BIT_LITERAL RIGHT_BRACE XOR
+cunit: KEYWORD_CHAN IDENT LEFT_BRACE RIGHT_BRACE XOR
+
+expected a top-level definition
+help: a file contains `proc`, `chan`, `type`, `struct`, `enum`, `func`, `const` and `import` definitions
+
+# cycle n
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_CYCLE XOR
+
+expected a number of cycles after `cycle`
+help: write a fixed number of cycles, e.g. `cycle 3`
+
+# generate (i : start, end, step) and generate_seq
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE_SEQ LEFT_PAREN IDENT COLON XOR
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE_SEQ LEFT_PAREN IDENT COLON INT COMMA XOR
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE_SEQ LEFT_PAREN IDENT COLON INT COMMA INT COMMA XOR
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE LEFT_PAREN IDENT COLON XOR
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE LEFT_PAREN IDENT COLON INT COMMA XOR
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_GENERATE LEFT_PAREN IDENT COLON INT COMMA INT COMMA XOR
+
+the start, end and step of `generate` must be integer literals
+help: e.g. `generate (i : 0, 7, 1) { ... }`
+
+# set r := v
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_SET IDENT XOR
+
+expected `:=` after the register in `set`
+help: registers are assigned with `:=`, e.g. `set r := 8'd1`
+
+# endpoint.message
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_SEND IDENT XOR
+
+expected `.` and a message name after the endpoint
+help: a message is named as `endpoint.message`, e.g. `recv ep.req`
+
+# send ep.msg (v)
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_SEND IDENT PERIOD IDENT XOR
+
+expected the value to send in parentheses
+help: e.g. `send ep.req (8'd1)`
+
+# dprint "..." (args)
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_DPRINT STR_LITERAL XOR
+
+expected the values to print in parentheses after the format string
+help: e.g. `dprint "x = %d" (x)`, or `dprint "done" ()` when there is nothing to print
+
+# *r
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE ASTERISK XOR
+
+expected a register name after `*`
+help: `*` reads a register, e.g. `*r`
+
+# e1; e2
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE BIT_LITERAL SEMICOLON XOR
+
+expected an expression after `;`
+help: `e1; e2` starts both expressions at the same time; remove the `;` if nothing follows it
+
+# e1 >> e2
+cunit: KEYWORD_FUNCTION IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE BIT_LITERAL DOUBLE_GT XOR
+
+expected an expression after `>>`
+help: `e1 >> e2` starts `e2` once `e1` has finished; remove the `>>` if nothing follows it
+
+# reg r : type;
+cunit: KEYWORD_PROC IDENT LEFT_PAREN RIGHT_PAREN LEFT_BRACE KEYWORD_REG IDENT XOR
+
+expected `:` and a type after the register name
+help: e.g. `reg r : logic[8];`
+
+# chan c { left m : (...), ... }
+cunit: KEYWORD_CHAN IDENT LEFT_BRACE XOR
+cunit: KEYWORD_CHAN IDENT LEFT_BRACE KEYWORD_LEFT IDENT COLON LEFT_PAREN RIGHT_PAREN COMMA XOR
+
+expected a message definition
+help: a message starts with its direction, `left` or `right`, e.g. `left req : (logic[8]@#1)`
+
+cunit: KEYWORD_CHAN IDENT LEFT_BRACE KEYWORD_LEFT IDENT COLON XOR
+
+expected the message type in parentheses
+help: e.g. `left req : (logic[8]@#1)`

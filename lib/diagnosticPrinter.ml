@@ -32,9 +32,25 @@ let read_span_lines (span : Lang.code_span) =
       Some (read span.st.pos_lnum []))
   with _ -> None
 
-(* Whitespace as wide as [line] up to [col], keeping tabs so carets line up. *)
+let is_utf8_continuation c = Char.code c land 0xC0 = 0x80
+
+(* Number of characters between byte offsets [a] and [b] of [line]. *)
+let char_count line a b =
+  let n = ref 0 in
+  for i = a to Int.min b (String.length line) - 1 do
+    if not (is_utf8_continuation line.[i]) then incr n
+  done;
+  !n + Int.max 0 (b - String.length line)
+
+(* Whitespace as wide as [line] up to byte [col]. *)
 let blank_prefix line col =
-  String.init col (fun i -> if i < String.length line && line.[i] = '\t' then '\t' else ' ')
+  let buf = Buffer.create col in
+  for i = 0 to col - 1 do
+    if i >= String.length line then Buffer.add_char buf ' '
+    else if line.[i] = '\t' then Buffer.add_char buf '\t'
+    else if not (is_utf8_continuation line.[i]) then Buffer.add_char buf ' '
+  done;
+  Buffer.contents buf
 
 let first_non_blank line =
   let len = String.length line in
@@ -54,7 +70,7 @@ let render_snippet buf width (span : Lang.code_span) label =
       let len = String.length line in
       let so = if lnum = st.pos_lnum then min (st.pos_cnum - st.pos_bol) len else first_non_blank line in
       let eo = if lnum = ed.pos_lnum then min (ed.pos_cnum - ed.pos_bol) len else len in
-      let carets = if eo > so then eo - so else if n = 1 then 1 else 0 in
+      let carets = if eo > so then char_count line so eo else if n = 1 then 1 else 0 in
       let label_s = match label with
         | Some l when lnum = last_lnum -> " " ^ l
         | _ -> ""

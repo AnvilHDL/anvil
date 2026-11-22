@@ -544,6 +544,8 @@ expr:
 //   { Lang.TryRecv (recv_pack, succ_expr, Lang.Tuple []) }
 | KEYWORD_CYCLE; n = INT
   { Lang.Cycle n }
+| KEYWORD_CYCLE; name = IDENT
+  { ParserHelper.cycle_param_unsupported name $loc(name) }
 | e = node(expr); LEFT_BRACKET; ind = index; RIGHT_BRACKET
   { Lang.Index (e, ind) }
 | e = node(expr); PERIOD; fieldname = node(IDENT)

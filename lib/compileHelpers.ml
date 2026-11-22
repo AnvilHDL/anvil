@@ -68,20 +68,16 @@ let rec parse_recursive cunits parsed_files (config : Config.compile_config) fil
           (fun in_data ->
             let lexbuf = Lexing.from_string (Bytes.to_string (in_data.buffer)) in
             lexbuf.Lexing.lex_curr_p <- {lexbuf.Lexing.lex_curr_p with Lexing.pos_fname = filename};
-            try Parser.cunit Lexer.read lexbuf
-            with
-              | Lexer.SyntaxError msg ->
-                let open Except in
-                [
-                  (Text ("Syntax error: " ^ msg));
-                  (Codespan (Some filename, {st = Lexing.lexeme_start_p lexbuf; ed = Lexing.lexeme_end_p lexbuf}))
-                ] |> raise_compile_error (Some filename)
-              | _ ->
-                let open Except in
-                [
-                  (Text "Syntax error");
-                  (Codespan (Some filename, {st = Lexing.lexeme_start_p lexbuf; ed = Lexing.lexeme_end_p lexbuf}))
-                ] |> raise_compile_error (Some filename)
+            let current_token () =
+              Except.Codespan (Some filename, {st = Lexing.lexeme_start_p lexbuf; ed = Lexing.lexeme_end_p lexbuf})
+            in
+            match ParserDriver.parse lexbuf with
+            | Ok cunit -> cunit
+            | Error msg -> raise_compile_error (Some filename) msg
+            | exception Lexer.SyntaxError msg -> raise_compile_error (Some filename) msg
+            | exception Except.UnimplementedError msg -> raise_compile_error (Some filename) msg
+            | exception ParserHelper.LiteralConversionError msg ->
+              raise_compile_error (Some filename) (msg @ [current_token ()])
           )
       with
         | Sys_error msg ->
