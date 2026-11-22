@@ -115,13 +115,13 @@ proc Processor() {
         operand_a >>
         operand_b >>
         {
-            if opcode == 2'b00 {
+            if opcode == 8'd0 {
                 send en_EX_MEM_ri.enqueue_req(operand_a + operand_b)
-            } else if opcode == 2'b01 {
+            } else if opcode == 8'd1 {
                 send en_EX_MEM_ri.enqueue_req(operand_a - operand_b)
-            } else if opcode == 2'b10 {
+            } else if opcode == 8'd2 {
                 send en_EX_MEM_ri.enqueue_req(operand_a & operand_b)
-            } else if opcode == 2'b11 {
+            } else if opcode == 8'd3 {
                 send en_EX_MEM_ri.enqueue_req(operand_a | operand_b)
             }
         } >>

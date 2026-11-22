@@ -126,12 +126,6 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     let (wires', w) = WireCollection.add_literal graph.thread_id ci.typedefs ci.macro_defs lit graph.wires in
     graph.wires <- wires';
     Typing.const_data graph (Some w) (dtype_of_literal lit :> data_type) ctx.current
-  | Sync ident ->
-    (
-      let shared_info = Hashtbl.find_opt ctx.shared_vars_info ident
-        |> unwrap_or_err ("Undefined identifier: " ^ ident) e.span in
-      Typing.sync_event_data graph ident shared_info.value ctx.current
-    )
   | Identifier ident ->
       let ctx_val = Typing.context_lookup ctx.cg_lt_ctx ident in
       let macro_val = List.assoc_opt ident (List.map (fun (macro : macro_def) ->(macro.id, macro)) ci.macro_defs) in
@@ -599,19 +593,12 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
       (* Sizes match, just update type *)
       Typing.merged_data graph (Some w) dtype ctx.current [td.ld]
     )
-  | Concat (es, is_flat) ->
+  | Concat es ->
     let tds = List.map (fun e' -> (e', construct_graphIR graph ci ctx e')) es in
     let ws = List.map (fun ((e', td) : expr_node * node_data) -> unwrap_or_err "Invalid value in concat" e'.span td.ld.w) tds in
     let (wires', w) = WireCollection.add_concat graph.thread_id ci.typedefs ci.macro_defs ws graph.wires in
     graph.wires <- wires';
-    let tdtype = List.map (fun ((_, td): expr_node * node_data) -> td.ld.dtype) tds in
-    if not (List.for_all (fun d -> d = List.hd tdtype) tdtype) && (not is_flat) then
-      raise (Except.TypeError [Text ("In concat: Incompatible types: " ^ (String.concat ", " (List.map string_of_data_type tdtype))); Except.codespan_local e.span]);
-    let new_dtype = ( 
-      match is_flat with 
-      | false -> `Array (List.hd tdtype, ParamEnv.Concrete (List.length es))
-      | _ -> `Array (`Logic, ParamEnv.Concrete (w.size))
-    ) in
+    let new_dtype = `Array (`Logic, ParamEnv.Concrete w.size) in
     AstAnnotator.attach_event e ctx.current None None;
     List.map (fun (_,td) -> td.ld) tds |> Typing.merged_data graph (Some w) new_dtype ctx.current
   |  Read rlval ->
@@ -914,36 +901,6 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
         raise (event_graph_error_default "Invalid variant type name!" e.span);
         Typing.const_data graph None (unit_dtype) ctx.current (* dummy return *)
     )
-  | SharedAssign (id, value_expr) ->
-    let shared_info = Hashtbl.find_opt ctx.shared_vars_info id
-      |> unwrap_or_err ("Undefined identifier " ^ id) e.span in
-    if graph.thread_id = shared_info.assigning_thread then
-      let value_td = construct_graphIR graph ci ctx value_expr in
-      if not ctx.lt_check_phase then (
-        if (Option.is_some shared_info.value.w) || (Option.is_some shared_info.assigned_at) then (
-          let prev_assign_action =
-            (Option.get shared_info.assigned_at).actions
-            |> List.find (fun {d; _} ->
-              match d with
-              | PutShared (id', _, _) -> id' = id
-              | _ -> false
-            )
-          in
-          raise (EventGraphError [
-            Text "Shared value can only be assigned in one place!";
-            Except.codespan_local e.span;
-            Text "Previously assigned at:";
-            Except.codespan_local prev_assign_action.span
-          ]);
-        );
-        shared_info.value.w <- value_td.ld.w;
-        shared_info.assigned_at <- Some ctx.current;
-      );
-      ctx.current.actions <- (PutShared (id, shared_info, value_td.ld) |> tag_with_span e.span)::ctx.current.actions;
-      AstAnnotator.attach_event e ctx.current None None;
-    else
-      raise (event_graph_error_default "Shared variable assigned in wrong thread" e.span);
-    Typing.const_data graph None (unit_dtype) ctx.current
   | List li ->
     let tds = List.map (construct_graphIR graph ci ctx) li in
     let ws = List.map (fun td -> unwrap_or_err "Invalid wires!" e.span td.ld.w) tds in

@@ -550,7 +550,7 @@ let atomic_delay_to_cycle_time_sum (to_ev : EventGraph.event)
     (ad : EventGraph.atomic_delay) : cycle_time_sum =
   match ad with
   | `Cycles c -> add_const_to_cycle_time_sum c []
-  | `Send _ | `Recv _ | `Sync _ ->
+  | `Send _ | `Recv _ ->
       (match to_ev.seq_delay_symbol with
       | Some sym -> [CycleUnknownTime sym]
       | None -> [])
@@ -823,7 +823,7 @@ let event_graph_collection_to_yojson (gc : EventGraph.event_graph_collection) : 
               let sum = compute_delays e0 in
               (match atomic_delay with
               | `Cycles c -> add_const_to_cycle_time_sum c sum
-              | `Send _ | `Recv _ | `Sync _ -> (
+              | `Send _ | `Recv _ -> (
                   match ev.seq_delay_symbol with
                   | Some sym -> extend_cycle_time_sums [CycleUnknownTime sym] sum
                   | None -> sum))

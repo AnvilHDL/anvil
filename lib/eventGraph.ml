@@ -29,15 +29,7 @@ type atomic_delay = [
   | `Cycles of int (** elapse of a specific number of cycles *)
   | `Send of Lang.message_specifier (** sending of a message *)
   | `Recv of Lang.message_specifier (** receiving of a message *)
-  | `Sync of Lang.identifier (** synchronising on a local shared value *)
 ]
-
-type global_lowering_data =
-{
-  mutable w : wire option;
-  glt : Lang.sig_lifetime;
-  gdtype : Lang.data_type;
-}
 
 (** Describe a time window that starts with an eventl ({!live}) and ends with an
 {{!event_pat}event pattern} ({!dead}) *)
@@ -71,11 +63,6 @@ and lowering_data = {
 and node_data = {
   ld : lowering_data;
 }
-and shared_var_info = {
-  assigning_thread : int;
-  value : global_lowering_data;
-  mutable assigned_at : event option;
-}
 
 (** Lvalue information after resolving indirection and indexing. *)
 and lvalue_info = {
@@ -88,7 +75,6 @@ and action =
   | DebugPrint of string * lowering_data list (** debug print ([dprint]) *)
   | DebugFinish (** [dfinish] *)
   | RegAssign of lvalue_info * lowering_data (** register assignment (technically this is not performed instantly) *)
-  | PutShared of string * shared_var_info * lowering_data
   | ImmediateSend of Lang.message_specifier * lowering_data
   | ImmediateRecv of Lang.message_specifier
 
@@ -193,7 +179,6 @@ type proc_graph = {
   proc_def_name: Lang.identifier; (** name of the source process definition *)
   extern_module: string option;
   threads: (event_graph * Lang.message_specifier option) list;
-  shared_vars_info : (Lang.identifier, shared_var_info) Hashtbl.t;
   messages : MessageCollection.t;
   proc_body : Lang.proc_def_body_maybe_extern;
   spawns : (Lang.identifier * (Lang.spawn_def Lang.ast_node)) list; 

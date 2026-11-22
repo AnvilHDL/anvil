@@ -17,11 +17,11 @@ syntax match anvilNumber /\<\d\+'\%(d\d\+\|b[01]\+\|h[0-9A-Fa-f]\+\)\>/
 
 syntax match anvilIdentifier /\<[A-Za-z_][A-Za-z0-9_]*\>/
 syntax keyword anvilType logic int void dyn
-syntax keyword anvilModifier left right extern foreign shared eternal
-syntax keyword anvilKeyword assigned by call chan const cycle dfinish dprint
-syntax keyword anvilKeyword else enum flat func generate generate_seq if import
-syntax keyword anvilKeyword in let loop match probe proc put ready recv recurse
-syntax keyword anvilKeyword recursive reg send set shl shr spawn struct sync try
+syntax keyword anvilModifier left right extern foreign eternal
+syntax keyword anvilKeyword call chan const cycle dfinish dprint
+syntax keyword anvilKeyword else enum func generate generate_seq if import
+syntax keyword anvilKeyword in let loop match probe proc ready recv recurse
+syntax keyword anvilKeyword recursive reg send set shl shr spawn struct try
 syntax keyword anvilKeyword type with
 
 syntax match anvilOperator /:=\|::\|--\|>>\|<=\|>=\|=>\|==\|!=\|&&\|||\|[=+*^&|@~.<>:#-]/

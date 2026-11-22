@@ -472,10 +472,6 @@ and expr_to_yojson (x: expr) = let result = match x with
       ("type", str "cycle");
       ("cycles", int n)
     ]
-  | Sync id -> [
-      ("type", str "sync");
-      ("id", identifier_to_yojson id)
-    ]
   | IfExpr (cond, then_br, else_br) -> [
       ("type", str "if_expr");
       ("cond", expr_node_to_yojson cond);
@@ -521,10 +517,9 @@ and expr_to_yojson (x: expr) = let result = match x with
       ("expr", expr_node_to_yojson e);
       ("field", ast_node_to_yojson identifier_to_yojson field)
     ]
-  | Concat (elist, flat) -> [
+  | Concat elist -> [
       ("type", str "concat");
-      ("elements", list expr_node_to_yojson elist);
-      ("flat", bool flat)
+      ("elements", list expr_node_to_yojson elist)
     ]
   | Cast (e, ty) -> [
       ("type", str "cast");
@@ -563,11 +558,6 @@ and expr_to_yojson (x: expr) = let result = match x with
   | Recv rp -> [
       ("type", str "recv");
       ("recv_pack", recv_pack_to_yojson rp)
-    ]
-  | SharedAssign (id, e) -> [
-      ("type", str "shared_assign");
-      ("id", identifier_to_yojson id);
-      ("expr", expr_node_to_yojson e)
     ]
   | List elist -> [
       ("type", str "list");
@@ -670,12 +660,6 @@ and args_spawn_to_yojson (a: args_spawn) = kind "args_spawn" (
       ("dimensions", array_index_concrete_to_yojson dims)
   ])
 
-let shared_var_def_to_yojson (s: shared_var_def) =
-  kind "shared_var_def" [
-    ("ident", identifier_to_yojson s.ident);
-    ("assigning_thread", int s.assigning_thread);
-    ("shared_lifetime", sig_lifetime_to_yojson s.shared_lifetime)
-  ]
 
 
 
@@ -687,7 +671,7 @@ let proc_def_body_to_yojson (b: proc_def_body) =
     ("channels", list (ast_node_to_yojson channel_def_to_yojson) b.channels);
     ("spawns", list (ast_node_to_yojson spawn_def_to_yojson) b.spawns);
     ("regs", list (ast_node_to_yojson reg_def_to_yojson) b.regs);
-    ("shared_vars", list (ast_node_to_yojson shared_var_def_to_yojson) b.shared_vars);
+    ("shared_vars", `List []);
     ("threads", list thread_to_yojson b.threads)
   ]
 

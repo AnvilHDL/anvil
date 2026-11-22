@@ -1,0 +1,16 @@
+// Loops whose register update runs in parallel with an if that has no else.
+proc set_parallel_if() {
+    reg a : logic[4];
+    reg b : logic[4];
+    reg fa : logic;
+    reg fb : logic;
+    loop {
+        dprint "a %d" (*a) >> cycle 1 >> set a := *a + 4'd1; if (*a == 4'd2) { set fa := 1'b1 }
+    }
+    loop {
+        { set b := *b + 4'd1; if (*b == 4'd2) { set fb := 1'b1 } } >> dprint "b %d" (*b) >> cycle 1
+    }
+    loop {
+        cycle 11 >> dfinish
+    }
+}

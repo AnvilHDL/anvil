@@ -32,8 +32,6 @@ let check_linear (config : Config.compile_config) lookup_message (g : event_grap
         | RegAssign (lv, _td) ->
           (* add_reg_ops_td ev td; *)
           reg_ops := (ev, lv.lval_range, ac_span.span)::!reg_ops
-        | PutShared (_, _, _td) ->
-          ()
         | ImmediateRecv msg ->
           add_msg msg ev ({d = {ty = Recv msg; until = ev}; def_span = ac_span.def_span; action_event = ac_span.action_event; span = ac_span.span})
         | ImmediateSend (msg, td) ->
@@ -284,8 +282,6 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
         let ns = List.map (fun td -> (td, (ev, `Cycles 0))) tds in
         td_to_live_until := Utils.list_unordered_join ns !td_to_live_until
       | DebugFinish -> ()
-      | PutShared (_, si, td) ->
-        td_to_live_until := (td, (ev, si.value.glt.e))::!td_to_live_until
       | ImmediateSend (msg, td) ->
         let msg_d = lookup_message msg |> Option.get in
         let stype = List.hd msg_d.sig_types in
@@ -378,13 +374,6 @@ let lifetime_check (config : Config.compile_config) (ci : cunit_info) (g : event
           else ()
         ) tds
       | DebugFinish -> ()
-      | PutShared (_, si, td) ->
-        if lifetime_in_range g.events lookup_message {live = ev; dead = [(ev, si.value.glt.e)]} td.lt |> not then
-          raise (LifetimeCheckError [
-                  Text "Value does not live long enough in put!";
-                  Except.codespan_local a.span
-                ])
-        else ()
       | ImmediateSend (msg, td) ->
         check_send msg td ev ev a.span
       | ImmediateRecv _ -> ()

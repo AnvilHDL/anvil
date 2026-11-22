@@ -1,6 +1,5 @@
 open EventGraph
 open EventGraphOps
-open ErrorCollector
 open Lang
 
 module Typing = struct
@@ -20,7 +19,6 @@ module Typing = struct
   type build_context = {
     cg_lt_ctx : lowering_data context;  (* To Do : We need to seperate codegen and lifetime contexts, but would cause aggressive changes as it flows down*)
     current : event;
-    shared_vars_info : (identifier, shared_var_info) Hashtbl.t;
     lt_check_phase : bool;
   }
 
@@ -89,16 +87,6 @@ module Typing = struct
     let live_event = event_create g (`Seq (current, `Send msg)) in
     {ld = {w = None; lt = {live = live_event; dead = [(live_event, `Eternal)]}; reg_borrows = []; dtype = unit_dtype}}
 
-  let sync_event_data g ident gtd current =
-    let event_synced = event_create g (`Seq (current, `Sync ident)) in
-    let dpat = gtd.glt.e in
-    (
-      match dpat with
-      | `Cycles _ -> ()
-      | _ -> raise (Except.UnimplementedError [Text "Non-static lifetime for shared data is unsupported!"])
-    );
-    {ld = {w = gtd.w; lt = {live = event_synced; dead = [(event_synced, dpat)]}; reg_borrows = []; dtype = gtd.gdtype}}
-
   let recv_msg_data g (w : wire option) (msg : message_specifier) (msg_def : message_def) (current : event) =
     let event_received = event_create g (`Seq (current, `Recv msg)) in
     let stype = List.hd msg_def.sig_types in
@@ -116,10 +104,9 @@ module Typing = struct
 
   module BuildContext = struct
     type t = build_context
-    let create_empty g si lt_check_phase: t = {
+    let create_empty g lt_check_phase: t = {
       cg_lt_ctx = context_empty;
       current = event_create g (`Root None);
-      shared_vars_info = si;
       lt_check_phase;
     }
 

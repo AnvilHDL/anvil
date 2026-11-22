@@ -27,7 +27,7 @@ proc test(ch : right ch, ch2 : right ch, ch3: left ch){
     reg l : logic;
     loop{
         let x = recv ch3.req>>
-        let y = #flat{2'd2,x};
+        let y = #{2'd2,x};
         match y{
             3'd0 => call get_val2(),
             3'd1 => call get_val3(),

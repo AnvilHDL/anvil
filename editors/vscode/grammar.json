@@ -285,14 +285,6 @@
 					"match": "\\b(left|right|extern)\\b"
 				},
 				{
-					"name": "keyword.other.anvil storage.type.anvil",
-					"match": "\\b(shared)\\b"
-				},
-				{
-					"name": "keyword.other.anvil",
-					"match": "\\b(assigned\\s+by)\\b"
-				},
-				{
 					"name": "keyword.other.anvil",
 					"match": "\\b(import|generate|generate_seq)\\b"
 				},
@@ -314,7 +306,7 @@
 				},
 				{
 					"name": "keyword.control.anvil",
-					"match": "(?<!\\$)\\b(call|loop|recursive|if|else|try|recurse|recv|send|dprint|dfinish|set|cycle|sync|match|put|ready|in|shl|shr|flat|probe)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(call|loop|recursive|if|else|try|recurse|recv|send|dprint|dfinish|set|cycle|match|ready|in|shl|shr|probe)\\b(?!\\$)"
 				},
 				{
 					"name": "keyword.other.anvil",

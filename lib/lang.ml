@@ -432,7 +432,6 @@ and expr =
   | Join of expr_node * expr_node (** [a; b] *)
   | Wait of expr_node * expr_node (** [a => b] *)
   | Cycle of int
-  | Sync of identifier (** synchronise on a shared value *)
   | IfExpr of expr_node * expr_node * expr_node
   | TryRecv of identifier * recv_pack * expr_node * expr_node (** try recv *)
   | TrySend of send_pack * expr_node * expr_node (** try send *)
@@ -440,7 +439,7 @@ and expr =
   | Record of identifier * (identifier * expr_node) ast_node list * expr_node option (** constructing a record-type value *)
   | Index of expr_node * index (** an element of an array ([a[3]]) *)
   | Indirect of expr_node * identifier ast_node (** a member of a record ([a.b]) *)
-  | Concat of expr_node list * bool
+  | Concat of expr_node list (** concatenate the bits of values ([#{a, b}]) *)
   | Cast of expr_node * data_type (** cast an expression to a specific data type *)
   | Ready of message_specifier (** [ready(a, b)] *)
   | Probe of message_specifier (** [probe(a, b)] *)
@@ -449,7 +448,6 @@ and expr =
   | Debug of debug_op
   | Send of send_pack
   | Recv of recv_pack
-  | SharedAssign of identifier * expr_node (** make ready a shared value *)
   | List of expr_node list (** array/list of expressions *)
   | Recurse
 and expr_node = expr ast_node
@@ -494,13 +492,6 @@ and args_spawn =
   | SingleEp of identifier
   | IndexedEp of identifier * array_index_concrete
 
-(* TODO: specify the type? *)
-type shared_var_def = {
-  ident: identifier;
-  assigning_thread: int;
-  shared_lifetime: sig_lifetime;
-}
-
 (** Process body. *)
 type proc_def_body = {
   (* new channels available to this process *)
@@ -508,7 +499,6 @@ type proc_def_body = {
   (* processes spawned by this process *)
   spawns: spawn_def ast_node list;
   regs: reg_def ast_node list;
-  shared_vars: shared_var_def ast_node list;  (* New field *)
   (* prog: expr; *)
   threads: (expr_node * message_specifier option) list; (** the second component is the optional reset signal *)
 }
@@ -723,8 +713,8 @@ let rec substitute_expr_identifier (id: identifier) (value: expr_node) (idx : in
       Index (new_arr, new_idx)
   | Cast (e, dtype) ->
       Cast (subst e, dtype)
-  | Concat (exprs, is_flat) ->
-      Concat (List.map subst exprs, is_flat)
+  | Concat exprs ->
+      Concat (List.map subst exprs)
   | Assign (lv, e) ->
       let new_lv = substitute_lvalue id value idx lv in
       Assign (new_lv, subst e)
@@ -770,11 +760,6 @@ let rec substitute_expr_identifier (id: identifier) (value: expr_node) (idx : in
       spec,
       Option.map subst e
     )
-  | SharedAssign (ident, e) ->
-    SharedAssign (
-      ident,
-      subst e
-    )
   | Read lv ->
     Read (substitute_lvalue id value idx lv)
   | Recurse | Literal _ | Cycle _
@@ -782,7 +767,6 @@ let rec substitute_expr_identifier (id: identifier) (value: expr_node) (idx : in
   | Recv recv_pack ->
       let new_recv_pack = {recv_msg_spec = sub_ep_index recv_pack.recv_msg_spec idx id} in
       Recv new_recv_pack
-  | Sync _ -> expr.d
 
   in
   { expr with d = new_expr }

@@ -34,7 +34,6 @@ let annotate_delay_to_exec (gcol : EventGraph.event_graph_collection) =
         (match lookup_message msg_spec with
         | Some msg when not (GraphAnalysis.message_is_immediate msg false) -> annotate_seq_delay start_ev
         | _ -> ())
-      | `Seq (start_ev, `Sync _) -> annotate_seq_delay start_ev
       | _ -> ()
     in
     let lookup_message msg_spec = MessageCollection.lookup_message pg.messages msg_spec gcol.channel_classes in

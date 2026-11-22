@@ -438,7 +438,6 @@ module CombSimplPass = struct
           let d = match action.d with
           | DebugPrint (s, td_list) -> DebugPrint (s, List.map replace_lowering_data td_list)
           | RegAssign (lval_info, td) -> RegAssign (replace_lvalue_info lval_info, replace_lowering_data td)
-          | PutShared (s, svi, td) -> PutShared (s, svi, replace_lowering_data td)
           | DebugFinish -> DebugFinish
           | ImmediateRecv msg -> ImmediateRecv msg
           | ImmediateSend (msg, td) -> ImmediateSend (msg, replace_lowering_data td)

@@ -135,7 +135,7 @@ let event_succ_distance non_succ_dist msg_dist_f later_dist_f either_dist_f even
       (
         match ad with
         | `Cycles n' -> d1 + n'
-        | `Send _ | `Recv _ | `Sync _ -> msg_dist_f d1
+        | `Send _ | `Recv _ -> msg_dist_f d1
       )
     | `Root (Some (ev1, _)) ->
       (* We need to check carefully to decide if we are sure
@@ -260,8 +260,7 @@ let events_pred_min_dist ev =
         let gap =
           match d with
           | `Cycles n -> n
-          | `Send _ | `Recv _
-          | `Sync _ -> 0
+          | `Send _ | `Recv _ -> 0
         in
         update_dist e' (v + gap)
       )
@@ -356,12 +355,11 @@ let events_max_dist events lookup_message ev =
         | Static _ | Dependent _ -> 0
         | _ -> event_distance_max
       )
-    | `Sync _ -> event_distance_max (* oo *)
   in
   let get_min_delay =
     function
     | `Cycles n -> n
-    | `Send _ | `Recv _ | `Sync _ -> 0
+    | `Send _ | `Recv _ -> 0
   in
   let min2_outs = Array.make n
     ((event_distance_max, 0), (event_distance_max, 0))
@@ -397,10 +395,10 @@ let events_max_dist events lookup_message ev =
           let m =
             List.fold_left (fun v e ->
               if is_pred e then
-                Int.min v (-pred_min_dist.(e.id))
+                Int.max v (-pred_min_dist.(e.id))
               else
                 v
-            ) event_distance_max br_side.owner_branch.branches_to
+            ) (-event_distance_max) br_side.owner_branch.branches_to
           in
           let e = List.hd br_side.owner_branch.branches_to in
           update_min2_outs m e e'
@@ -573,7 +571,7 @@ let rec recurse_unfold expr_full_node expr_node =
   else
     let expr' = match expr_node.d with
     | Literal _ | Identifier _
-    | Cycle _ | Sync _
+    | Cycle _
     | Ready _ | Read _ | Probe _
     | Debug DebugFinish
     | Recv _ -> expr_node.d
@@ -621,8 +619,8 @@ let rec recurse_unfold expr_full_node expr_node =
       Indirect (unfold e', ident)
     | Cast (e', dtype) ->
       Cast (unfold e', dtype)
-    | Concat (es, is_flat) ->
-      Concat (List.map unfold es, is_flat)
+    | Concat es ->
+      Concat (List.map unfold es)
     | Match (e, arms) ->
       Match (unfold e,
         List.map (fun (m, eop) -> (m, Option.map unfold eop)) arms
@@ -631,8 +629,6 @@ let rec recurse_unfold expr_full_node expr_node =
       Debug (DebugPrint (format, List.map unfold es))
     | Send sp ->
       Send {sp with send_data = unfold sp.send_data}
-    | SharedAssign (ident, e') ->
-      SharedAssign (ident, unfold e')
     | List es ->
       List (List.map unfold es)
     | Recurse -> failwith "Shouldn't reach here!"
@@ -645,10 +641,10 @@ module IntHashTbl = Hashtbl.Make(Int)
     body latency is at least as large as the recursion gap, then perform those
     unrolls.  [construct_graphIR] is the IR-building traversal from {!GraphBuilder}
     and is passed here to avoid a circular module dependency. *)
-let recurse_unfold_for_checks construct_graphIR ci shared_vars_info graph (expr_node : Lang.expr_node) =
+let recurse_unfold_for_checks construct_graphIR ci graph (expr_node : Lang.expr_node) =
   let tmp_graph = {graph with last_event_id = -1} in
   let td = construct_graphIR tmp_graph ci
-    (Typing.BuildContext.create_empty tmp_graph shared_vars_info true)
+    (Typing.BuildContext.create_empty tmp_graph true)
     expr_node in
   (* now just check the total *)
   let root = List.find (fun e -> e.source = `Root None) tmp_graph.events in

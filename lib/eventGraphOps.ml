@@ -35,7 +35,6 @@ let print_graph (g: event_graph) =
       | `Cycles n -> Printf.sprintf "C %d" n
       | `Send _ -> "S"
       | `Recv _ -> "R"
-      | `Sync s -> Printf.sprintf "S %s" s
       in
       Printf.eprintf "> %d: seq %d %s\n" ev.id ev'.id c
     | `Branch (ev', _) -> Printf.eprintf "> %d: branch %d\n" ev.id ev'.id
@@ -67,7 +66,6 @@ let print_dot_graph g out =
       | `Cycles n -> Printf.sprintf "#%d" n
       | `Send _ -> "S"
       | `Recv _ -> "R"
-      | `Sync _ -> "G"
       in
       print_edge ev' ev label
     | `Branch (_, br_info) ->
@@ -92,6 +90,5 @@ let string_of_actions action =
   | DebugPrint _ -> "DebugPrint"
   | DebugFinish -> "DebugFinish"
   | RegAssign _ -> "RegAssign"
-  | PutShared _ -> "PutShared"
   | ImmediateRecv _ -> "ImmediateRecv"
   | ImmediateSend _ -> "ImmediateSend"

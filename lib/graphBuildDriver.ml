@@ -8,21 +8,20 @@ open ErrorCollector
     @param config   Compilation configuration (controls lt-checks, two-round,
                     disable_lt_checks flags).
     @param ci       Compilation-unit info (typedefs, channel classes, …).
-    @param shared_vars_info  Shared-variable table for the enclosing process.
     @param construct_graphIR        AST→IR traversal from {!GraphBuilder}.
     @param graph    A freshly-constructed, empty event-graph skeleton for this
                     thread (thread_id, channels, regs, messages already set).
     @param e        The thread body expression to compile. *)
-let build_thread config ci shared_vars_info construct_graphIR (graph : event_graph) (e : Lang.expr_node) =
+let build_thread config ci construct_graphIR (graph : event_graph) (e : Lang.expr_node) =
   (* Round 1: optional lifetime-check pass on a disposable graph clone *)
   let graph_opt =
     if (not config.Config.disable_lt_checks) || config.Config.two_round_graph then (
       let tmp_graph = {graph with last_event_id = -1} in
       let unrolled_e =
-        GraphAnalysis.recurse_unfold_for_checks construct_graphIR ci shared_vars_info graph e
+        GraphAnalysis.recurse_unfold_for_checks construct_graphIR ci graph e
       in
       let td  = construct_graphIR tmp_graph ci
-        (Typing.BuildContext.create_empty tmp_graph shared_vars_info true)
+        (Typing.BuildContext.create_empty tmp_graph true)
         unrolled_e in
       tmp_graph.last_event_id <- (EventGraphOps.find_last_event tmp_graph).id;
       tmp_graph.is_general_recursive <- tmp_graph.last_event_id <> td.ld.lt.live.id;
@@ -41,7 +40,7 @@ let build_thread config ci shared_vars_info construct_graphIR (graph : event_gra
   | Some g -> g
   | None ->
     (* discard after type checking *)
-    let ctx = Typing.BuildContext.create_empty graph shared_vars_info false in
+    let ctx = Typing.BuildContext.create_empty graph false in
     let td  = construct_graphIR graph ci ctx e in
     graph.last_event_id <- (EventGraphOps.find_last_event graph).id;
     graph.is_general_recursive <- graph.last_event_id <> td.ld.lt.live.id;
@@ -104,20 +103,6 @@ let build_proc (config : Config.compile_config) sched module_name param_values
       let module_name = BuildScheduler.add_proc_task sched ci.file_name s.span s.d.proc s.d.compile_params in
       (module_name, s)
     ) body.spawns in
-    let shared_vars_info = Hashtbl.create (List.length body.shared_vars) in
-    List.iter (fun sv ->
-      let v = {
-        w = None;
-        glt = sv.d.shared_lifetime;
-        gdtype = unit_dtype; (* explicitly annotate? *)
-      } in
-      let r = {
-        assigning_thread = sv.d.assigning_thread;
-        value = v;
-        assigned_at = None;
-      } in
-        Hashtbl.add shared_vars_info sv.d.ident r
-      ) body.shared_vars;
       if body.threads = [] then
         raise (Except.TypeError [Text (Printf.sprintf "Process %s must have at least one thread!" proc.name)]);
 
@@ -136,16 +121,16 @@ let build_proc (config : Config.compile_config) sched module_name param_values
           thread_codespan = e.span;
           comb = false;
         } in
-        let g = build_thread config ci shared_vars_info GraphBuilder.construct_graphIR graph e in
+        let g = build_thread config ci GraphBuilder.construct_graphIR graph e in
         (g, reset_by)
       ) body.threads in
       {name = module_name; proc_def_name = proc.name; extern_module = None;
-        threads = proc_threads; shared_vars_info; messages = msg_collection;
+        threads = proc_threads; messages = msg_collection;
         proc_body = proc.body; spawns = List.map (fun (ident, spawn) -> (ident, spawn)) spawns}
     | Extern (extern_mod, _extern_body) ->
       let msg_collection = MessageCollection.create [] proc.args [] ci.channel_classes [] [] in
       {name = module_name; proc_def_name = proc.name; extern_module = Some extern_mod; threads = [];
-        shared_vars_info = Hashtbl.create 0; messages = msg_collection;
+        messages = msg_collection;
         proc_body = proc.body; spawns = []}
 
 let build (config : Config.compile_config) sched module_name param_values (cunit : compilation_unit) =

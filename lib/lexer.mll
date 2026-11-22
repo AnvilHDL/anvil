@@ -51,11 +51,7 @@ rule read =
   | "!="      { EXCL_EQ }
   | "ready"   { KEYWORD_READY }
   | "probe"   { KEYWORD_PROBE }
-  | "put"     { KEYWORD_PUT }
   | "void"    { KEYWORD_VOID }
-  | "shared"  { KEYWORD_SHARED }
-  | "assigned" { KEYWORD_ASSIGNED }
-  | "by"      { KEYWORD_BY }
   | "func"    { KEYWORD_FUNCTION }
   | "in"      { KEYWORD_IN }
   | "call"    { KEYWORD_CALL }
@@ -66,7 +62,6 @@ rule read =
   | "right"   { KEYWORD_RIGHT }
   | "logic"   { KEYWORD_LOGIC }
   | "foreign" { KEYWORD_FOREIGN }
-  | "flat"    { KEYWORD_FLAT }
   | "shl"     { SHL }
   | "shr"     { SHR }
   | "let"     { KEYWORD_LET }
@@ -79,7 +74,6 @@ rule read =
   | "set"     { KEYWORD_SET }
   | "match"   { KEYWORD_MATCH }
   | "dyn"     { KEYWORD_DYN }
-  | "sync"    { KEYWORD_SYNC }
   | "cycle"   { KEYWORD_CYCLE }
   | "reg"     { KEYWORD_REG }
   | "const"   { KEYWORD_CONST }

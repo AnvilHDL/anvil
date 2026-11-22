@@ -30,7 +30,7 @@ let collect_reg_states g =
           let sn = EventStateFormatter.format_counter g.thread_id e.id in
           [(Printf.sprintf "logic[%d:0]" (width - 1), sn)]
         )
-      | `Send _ | `Recv _ | `Sync _ ->
+      | `Send _ | `Recv _ ->
         let sn = EventStateFormatter.format_syncstate g.thread_id e.id in
         [("logic", sn)]
     )
@@ -144,15 +144,6 @@ let codegen_next printer (graphs : EventGraph.event_graph_collection)
               Printf.sprintf "assign %s_n = 1'b0;" sn
             ] |> print_lines
           )
-        | `Sync s ->
-          let si = Hashtbl.find pg.shared_vars_info s in
-          let assigned_at = Option.get si.assigned_at in
-          let sn = EventStateFormatter.format_syncstate g.thread_id e.id in
-          let wn = EventStateFormatter.format_current assigned_at.graph.thread_id assigned_at.id in
-          [
-            Printf.sprintf "assign %s = (%s || %s_q) && %s;" cn cn' sn wn;
-            Printf.sprintf "assign %s_n = (%s || %s_q) && !%s;" sn cn' sn wn
-          ] |> print_lines
       )
     | `Branch (_e, br_info) ->
       List.map (fun (e : EventGraph.event) ->
@@ -274,7 +265,6 @@ let codegen_actions ?(action_filter = fun _ -> true) printer (g : EventGraph.eve
             len
             (CodegenFormat.format_wirename w.thread_id w.id)
             |> print_line
-        | PutShared _ -> ()
         | ImmediateRecv _ -> ()
         | ImmediateSend _ -> ()
       in

@@ -99,6 +99,7 @@ The expression `#{e1, e2, ..., en}` concatenates the evaluation results of `e1`,
 `en` and completes evaluation when all evaluations of `e1`, `e2`, ..., `en` have completed.
 Note `en` will be placed at the low bits in the result while `e1` will be placed at the high bits.
 For example `#{2'b01, 5'b01101, 1'b1}` produces value `8'b01011011`.
+The result is a flat `logic` vector; to build an array use `[e1, e2, ..., en]`, where `e1` is element 0.
 
 #### Send Expressions
 

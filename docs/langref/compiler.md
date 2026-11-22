@@ -54,4 +54,5 @@ regardless of whether the compilation succeeds or fails:
   * `path`: the file path associated with the error, or `null`
   * `description`: an array of fragments describing the error.
     Each fragment is either a plain text message or a code span with annotated source.
+    In a code span's `trace`, `line` is 1-based and `col` is 0-based, counted in UTF-16 code units.
 * `output`: the generated SystemVerilog code (only present on success)

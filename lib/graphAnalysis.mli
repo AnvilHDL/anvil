@@ -138,7 +138,6 @@ val recurse_unfold_for_checks :
    Lang.expr_node ->
    EventGraph.node_data) ->
   EventGraph.cunit_info ->
-  (Lang.identifier, EventGraph.shared_var_info) Hashtbl.t ->
   EventGraph.event_graph ->
   Lang.expr_node ->
   Lang.expr_node

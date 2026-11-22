@@ -91,7 +91,6 @@ Below is a categorized list of the available examples, along with brief descript
 
 | Example                                  | Features                                        |
 | ---------------------------------------- | ----------------------------------------------- |
-| [RCATop](RCATop.anvil)                   | Multi-channel communication, `shared` variables |
 | [static_sync](static_sync.anvil)         | Static synchronization mode                     |
 | [static_dyn_sync](static_dyn_sync.anvil) | Mixed static and dynamic synchronization        |
 | [try_recv](try_recv.anvil)               | Non-blocking `try recv ... else`                |
@@ -105,7 +104,7 @@ Below is a categorized list of the available examples, along with brief descript
 | [test_chan_array_parametric](test_chan_array_parametric.anvil)| Multi-dimensional channel arrays with parametric size instantiation |
 | [test_chan_generate](test_chan_generate.anvil) | Indexed endpoint access in `generate` blocks        |
 
-> **Total:** 13 examples
+> **Total:** 12 examples
 
 ---
 
@@ -167,4 +166,4 @@ Keeping this README up to date helps maintain clarity and usability for future u
 
 ---
 
-> **Current Example Count:** 51
+> **Current Example Count:** 50

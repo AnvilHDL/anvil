@@ -45,12 +45,10 @@
 %token KEYWORD_CHAN         (* chan *)
 %token KEYWORD_LEFT         (* left *)
 %token KEYWORD_RIGHT        (* right *)
-%token KEYWORD_PUT          (* put *)
 %token KEYWORD_LOGIC        (* logic *)
 %token KEYWORD_FOREIGN      (* foreign *)
 %token KEYWORD_GENERATE     (* generate *)
 %token KEYWORD_GENERATE_SEQ     (* generate *)
-%token KEYWORD_FLAT       (* flat *)
 %token KEYWORD_IF           (* if *)
 %token KEYWORD_ELSE         (* else *)
 %token KEYWORD_LET          (* let *)
@@ -61,7 +59,6 @@
 %token KEYWORD_TYPE         (* type *)
 %token KEYWORD_SET          (* set *)
 %token KEYWORD_MATCH        (* match *)
-%token KEYWORD_SYNC         (* sync *)
 %token KEYWORD_DYN          (* dyn *)
 %token KEYWORD_CYCLE        (* cycle *)
 %token KEYWORD_REG          (* reg *)
@@ -83,13 +80,10 @@
 %token <string>DEC_LITERAL  (* decimal literal *)
 %token <string>HEX_LITERAL  (* hexadecimal literal *)
 %token <string>STR_LITERAL
-%token KEYWORD_SHARED       (* shared *)
-%token KEYWORD_ASSIGNED     (* assigned *)
-%token KEYWORD_BY           (* by *)
 %nonassoc PREC_NAMED_TYPE
 %right LEFT_ABRACK RIGHT_ABRACK LEFT_ABRACK_EQ RIGHT_ABRACK_EQ
 %right DOUBLE_GT SEMICOLON
-%right KEYWORD_LET KEYWORD_SET KEYWORD_PUT
+%right KEYWORD_LET KEYWORD_SET
 %left DOUBLE_AND DOUBLE_OR
 %left EXCL_EQ DOUBLE_EQ
 %left XOR AND OR PLUS MINUS
@@ -180,7 +174,6 @@ proc_def_body:
       spawns = [];
       regs = [];
       threads = [];
-      shared_vars = [];
     }
   }
 | KEYWORD_LOOP; reset_by = message_specifier?; LEFT_BRACE; thread_prog = node(expr); RIGHT_BRACE; body=proc_def_body //For thread definitions
@@ -205,10 +198,6 @@ proc_def_body:
 | KEYWORD_SPAWN; spawn_def = node(spawn); SEMICOLON; body = proc_def_body // For instantiating processes
   {
     let open Lang in {body with spawns = spawn_def::(body.spawns)}
-  }
-| shared_var = node(shared_var_def); SEMICOLON; body = proc_def_body
-  {
-    let open Lang in {body with shared_vars = shared_var :: body.shared_vars}
   }
 ;
 
@@ -510,14 +499,10 @@ expr:
   { Lang.Tuple ([]) }
 | LEFT_PAREN; e = expr; RIGHT_PAREN
   { e }
-| KEYWORD_SYNC; ident = IDENT
-  { Lang.Sync ident }
 | KEYWORD_READY; msg_spec = message_specifier
   { Lang.Ready msg_spec }
 | KEYWORD_PROBE; msg_spec = message_specifier
   { Lang.Probe msg_spec }
-| KEYWORD_PUT; ident = IDENT; COLON_EQ; v = node(expr) %prec KEYWORD_PUT
-  { Lang.SharedAssign (ident, v) }
 | KEYWORD_LET; binding = IDENT; EQUAL; v = node(expr) %prec KEYWORD_LET
   { Lang.Let ([binding], None, v) }
 | KEYWORD_LET; binding = IDENT; COLON; dtype = data_type; EQUAL; v = node(expr) %prec KEYWORD_LET
@@ -564,9 +549,7 @@ expr:
 | e = node(expr); PERIOD; fieldname = node(IDENT)
   { Lang.Indirect (e, fieldname) }
 | SHARP; LEFT_BRACE; components = separated_list(COMMA, node(expr)); RIGHT_BRACE
-  { Lang.Concat (components, false) }
-| SHARP; KEYWORD_FLAT; LEFT_BRACE; components = separated_list(COMMA, node(expr)); RIGHT_BRACE
-  { Lang.Concat (components, true) }
+  { Lang.Concat components }
 | LEFT_ABRACK; LEFT_PAREN; expr = node(expr); RIGHT_PAREN; DOUBLE_COLON; dtype = data_type; RIGHT_ABRACK
   { Lang.Cast (expr, dtype) }
 | LEFT_BRACE; e = expr; RIGHT_BRACE
@@ -861,15 +844,6 @@ data_type:
   (* We need to reverse the array ranges so logic[3][2] is 3 arrays of length 2 *)
 ;
 
-lifetime_spec:
-  e_time = timestamp
-  {
-    {
-      e = e_time;
-    } : Lang.sig_lifetime
-  }
-;
-
 lifetime_spec_chan_local:
   e_time = timestamp_chan_local
   {
@@ -879,15 +853,6 @@ lifetime_spec_chan_local:
   }
 ;
 
-
-timestamp:
-| SHARP; n = INT
-  { `Cycles n }
-| msg_spec = message_specifier
-  { `Message_with_offset (msg_spec, 0, true) }
-| KEYWORD_ETERNAL
-  { `Eternal }
-;
 
 timestamp_chan_local:
 | SHARP; n = INT
@@ -937,16 +902,6 @@ int_or_id:
   { string_of_int n }
 | id = IDENT
   { id }
-shared_var_def:
-  KEYWORD_SHARED; LEFT_PAREN; lifetime = lifetime_spec; RIGHT_PAREN; ident = IDENT; KEYWORD_ASSIGNED; KEYWORD_BY; thread_id = INT
-  {
-    {
-      ident = ident;
-      assigning_thread = thread_id;
-      shared_lifetime = lifetime;
-    } : Lang.shared_var_def
-  }
-;
 
 macro_def:
   | KEYWORD_CONST; id = IDENT; EQUAL; value = INT; SEMICOLON

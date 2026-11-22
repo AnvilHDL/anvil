@@ -34,19 +34,12 @@ chan RCAch {
 proc full_adder(ch : left addCh) {
     reg sum : logic[1];
     reg cout : logic[1];
-    shared (#10) x assigned by 0;
     loop {
         let r = recv ch.req >>
-        put x := 4'b1111;
         let s=(r.a^r.b^r.cr);
         let c=((r.a&r.b) | (r.b&r.cr) | (r.cr&r.a));
         { set sum := s; set cout := c } >>
         send ch.res(add1_res::{sum = *sum; cout = *cout})
-    }
-    loop {
-        let x = sync x >>
-        dprint "x = %d" (x);
-        cycle 1
     }
 }
 
