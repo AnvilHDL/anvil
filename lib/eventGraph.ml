@@ -101,6 +101,12 @@ after a certain event is reached.
 *)
 and event_pat = (event * Lang.delay_pat) list
 
+(** The source construct whose completion reaches an event, e.g. a [recv]. *)
+and event_origin = {
+  what : string; (** a noun phrase, e.g. "the `recv ep.req`" *)
+  where : Lang.code_span;
+}
+
 (** An event. *)
 and event = {
   id : int; (** an integral identifier of the event, unique within the event graph *)
@@ -116,6 +122,7 @@ and event = {
   mutable removed : bool; (** is this event removed? (used in optimisation) *)
   mutable expr_nodes : Lang.expr_node list; (** the AST nodes associated with this event, used for syncing event annotations on the AST *)
   mutable seq_delay_symbol : string option; (** symbolic delay for the incoming blocking sequence edge *)
+  mutable origin : event_origin option; (** what reaches this event in the source, for error messages *)
 }
 
 and branch_cond =

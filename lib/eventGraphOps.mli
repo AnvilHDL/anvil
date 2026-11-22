@@ -21,3 +21,13 @@ val find_last_event : EventGraph.event_graph -> EventGraph.event
 val string_of_actions : EventGraph.action -> string
 
 val sub_reg_range : Lang.identifier -> int -> int -> EventGraph.subreg_range
+
+(** A phrase naming the moment an event is reached, e.g. "the `recv ep.req` on line 9". *)
+val describe_event : EventGraph.event -> string
+
+(** A phrase naming when an event pattern is matched, e.g. "1 cycle after the `recv ep.req` on line 9".
+    [None] for a pattern that never matches. *)
+val describe_pat_end : EventGraph.event * Lang.delay_pat -> string option
+
+(** A lifetime in words, e.g. "from the `recv ep.req` on line 9 until 1 cycle after the `recv ep.req` on line 9". *)
+val describe_lifetime : EventGraph.lifetime -> string

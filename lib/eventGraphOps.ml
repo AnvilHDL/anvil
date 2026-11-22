@@ -28,6 +28,9 @@ let subreg_ranges_possibly_intersect r1 r2 =
 
 let print_graph (g: event_graph) =
   List.iter (fun ev ->
+    (match ev.origin with
+     | Some o -> Printf.eprintf "> %d is %s on line %d\n" ev.id o.what o.where.st.pos_lnum
+     | None -> ());
     match ev.source with
     | `Later (e1, e2) -> Printf.eprintf "> %d: later %d %d\n" ev.id e1.id e2.id
     | `Seq (ev', a) ->
@@ -92,3 +95,50 @@ let string_of_actions action =
   | RegAssign _ -> "RegAssign"
   | ImmediateRecv _ -> "ImmediateRecv"
   | ImmediateSend _ -> "ImmediateSend"
+
+let cycles_phrase n = if n = 1 then "1 cycle" else Printf.sprintf "%d cycles" n
+
+let rec describe_event (ev : event) =
+  match ev.origin with
+  | Some o -> Printf.sprintf "%s on line %d" o.what o.where.st.pos_lnum
+  | None ->
+    match ev.source with
+    | `Root None -> "the start of the loop iteration"
+    | `Root (Some _) -> "the start of a branch"
+    | `Branch _ -> "the end of a branch"
+    | `Seq (ev', `Cycles n) -> Printf.sprintf "%s after %s" (cycles_phrase n) (describe_event ev')
+    | `Seq (_, `Send m) -> Printf.sprintf "the `send %s.%s`" m.endpoint m.msg
+    | `Seq (_, `Recv m) -> Printf.sprintf "the `recv %s.%s`" m.endpoint m.msg
+    | `Later _ ->
+      let rec leaves (e : event) =
+        match e.origin, e.source with
+        | None, `Later (e1, e2) -> leaves e1 @ leaves e2
+        | _ -> [e]
+      in
+      let names = leaves ev
+        |> List.sort_uniq (fun (a : event) (b : event) -> compare a.id b.id)
+        |> List.map describe_event
+      in
+      match List.rev names with
+      | [] -> "an event"
+      | [n] -> n
+      | [b; a] -> Printf.sprintf "both %s and %s" a b
+      | last :: rest -> Printf.sprintf "all of %s and %s" (String.concat ", " (List.rev rest)) last
+
+let describe_pat_end ((ev, pat) : event * Lang.delay_pat) =
+  let at = describe_event ev in
+  match pat with
+  | `Eternal -> None
+  | `Cycles 0 -> Some at
+  | `Cycles n -> Some (Printf.sprintf "%s after %s" (cycles_phrase n) at)
+  | `Message_with_offset (m, o, plus) ->
+    let next = Printf.sprintf "the next `%s.%s` after %s" m.endpoint m.msg at in
+    if o = 0 then Some next
+    else Some (Printf.sprintf "%s %s %s" (cycles_phrase o) (if plus then "after" else "before") next)
+
+let describe_lifetime (lt : lifetime) =
+  let start = describe_event lt.live in
+  match List.filter_map describe_pat_end lt.dead |> List.sort_uniq compare with
+  | [] -> Printf.sprintf "from %s on" start
+  | [e] -> Printf.sprintf "from %s until %s" start e
+  | es -> Printf.sprintf "from %s until the first of: %s" start (String.concat "; " es)

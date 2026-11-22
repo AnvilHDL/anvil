@@ -13,6 +13,10 @@ let unwrap_or_err err_msg err_span opt =
   | Some d -> d
   | None -> raise_fatal (event_graph_error_default err_msg err_span)
 
+(* Records what reaches [ev] in the source, unless it is already known. *)
+let set_origin (ev : event) what span =
+  if Option.is_none ev.origin then ev.origin <- Some {what; where = span}
+
 let register_names (graph : event_graph) =
   Utils.StringMap.bindings graph.regs |> List.map (fun (name, _) -> (name, "register"))
 
@@ -353,7 +357,9 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     check_dtype err_string (Some lvi.lval_dtype) td.ld.dtype e.span ci.file_name ci.weak_typecasts ci.typedefs ci.macro_defs;
     ctx.current.actions <- (RegAssign (lvi, td.ld) |> tag_with_span e.span)::ctx.current.actions;
     AstAnnotator.attach_event e ctx.current None (Some [DelayConst 1]);
-    Typing.cycles_data graph 1 ctx.current
+    let data = Typing.cycles_data graph 1 ctx.current in
+    set_origin data.ld.lt.live (Printf.sprintf "the assignment to `%s`" (string_of_lvalue lval)) e.span;
+    data
   | Call (id, arg_list) ->
       let func = match List.find_opt (fun (f: Lang.func_def) -> f.name = id) ci.func_defs with
         | Some f -> f
@@ -529,9 +535,11 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     let wires, msg_ack_port = WireCollection.add_msg_ack_port graph.thread_id ci.typedefs msg_spec graph.wires in
     graph.wires <- wires;
     Typing.immediate_data graph (Some msg_ack_port) `Logic ctx.current
-  | Cycle n ->
-    let n = cycle_count ci ctx n e.span in
+  | Cycle n_src ->
+    let n = cycle_count ci ctx n_src e.span in
     let data = Typing.cycles_data graph n ctx.current in
+    let n_s = match n_src with ParamEnv.Concrete v -> string_of_int v | ParamEnv.Param p -> p in
+    set_origin data.ld.lt.live (Printf.sprintf "the `cycle %s`" n_s) e.span;
     AstAnnotator.attach_event e ctx.current None (Some [DelayConst n]);
     data
   | IfExpr (e1, e2, e3) ->
@@ -559,6 +567,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     AstAnnotator.attach_event e ctx.current None None;
 
     let ctx_br = BuildContext.branch graph ctx' branch_info in
+    set_origin ctx_br.current "the end of the `if`" e.span;
     br_side_true.branch_event <- Some ctx_br.current;
     br_side_false.branch_event <- Some ctx_br.current;
     let lt = {live = ctx_br.current; (* branch event is reached when either split event is reached *)
@@ -603,6 +612,8 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     } in
 
     let (br_side_true, ctx_true) = BuildContext.branch_side graph ctx branch_info 0 in
+    set_origin ctx_true.current
+      (Printf.sprintf "the `send %s.%s` in the `try`" send_pack.send_msg_spec.endpoint send_pack.send_msg_spec.msg) e.span;
     let td1 = construct_graphIR graph ci ctx_true e1 in
     let (br_side_false, ctx_false) = BuildContext.branch_side graph ctx branch_info 1 in
     let td2 = construct_graphIR graph ci ctx_false e2 in
@@ -623,6 +634,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     );
 
     let ctx_br = BuildContext.branch graph ctx branch_info in
+    set_origin ctx_br.current "the end of the `try`" e.span;
     br_side_true.branch_event <- Some ctx_br.current;
     br_side_false.branch_event <- Some ctx_br.current;
     let lt = {live = ctx_br.current; (* branch event is reached when either split event is reached *)
@@ -660,6 +672,8 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     } in
 
     let (br_side_true, ctx_true_no_binding) = BuildContext.branch_side graph ctx branch_info 0 in
+    set_origin ctx_true_no_binding.current
+      (Printf.sprintf "the `recv %s.%s` in the `try`" recv_pack.recv_msg_spec.endpoint recv_pack.recv_msg_spec.msg) e.span;
 
     (* message *)
     let msg = message_of graph ci recv_pack.recv_msg_spec e.span in
@@ -689,6 +703,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     AstAnnotator.attach_def_from_top_level_message e msg recv_pack.recv_msg_spec graph;
 
     let ctx_br = BuildContext.branch graph ctx branch_info in
+    set_origin ctx_br.current "the end of the `try`" e.span;
     br_side_true.branch_event <- Some ctx_br.current;
     br_side_false.branch_event <- Some ctx_br.current;
     let lt = {live = ctx_br.current; (* branch event is reached when either split event is reached *)
@@ -756,6 +771,7 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
 
         BuildContext.branch_merge ctx' @@ ctx_default::(List.map (fun (ctx, _, _) -> ctx) branches);
         let ctx_br = BuildContext.branch graph ctx' branch_info in
+        set_origin ctx_br.current "the end of the `match`" e.span;
         List.iter
           (fun (_, br_side, _) ->
             br_side.branch_event <- Some ctx_br.current
@@ -923,6 +939,8 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     let err_string = DTypeCheck.fmt_send send_pack.send_msg_spec in
     check_dtype err_string (Some msg_dtype) td.ld.dtype e.span ci.file_name ci.weak_typecasts ci.typedefs ci.macro_defs;
     let ntd = Typing.send_msg_data graph send_pack.send_msg_spec ctx.current in
+    set_origin ntd.ld.lt.live
+      (Printf.sprintf "the `send %s.%s`" send_pack.send_msg_spec.endpoint send_pack.send_msg_spec.msg) e.span;
     ctx.current.sustained_actions <-
       ({
         until = ntd.ld.lt.live;
@@ -940,6 +958,8 @@ and construct_graphIR (graph : event_graph) (ci : cunit_info)
     let (wires', w) = WireCollection.add_msg_port graph.thread_id ci.typedefs ci.macro_defs recv_pack.recv_msg_spec 0 msg graph.wires in
     graph.wires <- wires';
     let ntd = Typing.recv_msg_data graph w recv_pack.recv_msg_spec msg ctx.current in
+    set_origin ntd.ld.lt.live
+      (Printf.sprintf "the `recv %s.%s`" recv_pack.recv_msg_spec.endpoint recv_pack.recv_msg_spec.msg) e.span;
     ctx.current.sustained_actions <-
       ({until = ntd.ld.lt.live; ty = Recv recv_pack.recv_msg_spec} |> tag_with_span e.span)::ctx.current.sustained_actions;
     AstAnnotator.attach_event e ctx.current (Some ntd.ld.lt.live) None;
