@@ -122,7 +122,13 @@ rule read =
   | "enum"    { KEYWORD_ENUM }
   | "with"    { KEYWORD_WITH }
   | "try"     { KEYWORD_TRY }
-  | int       { let n = Lexing.lexeme lexbuf |> int_of_string in INT n }
+  | int       {
+      let s = Lexing.lexeme lexbuf in
+      match int_of_string_opt s with
+      | Some n -> INT n
+      | None ->
+        error (Printf.sprintf "integer `%s` is too large" s) (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf)
+    }
   | ident     { IDENT (Lexing.lexeme lexbuf) }
   | bit_literal { BIT_LITERAL (Lexing.lexeme lexbuf) }
   | dec_literal { DEC_LITERAL (Lexing.lexeme lexbuf) }
