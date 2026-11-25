@@ -88,7 +88,8 @@ let create (channels : channel_def ast_node list)
       [(left_endpoint, span); (right_endpoint, span)]
     else 
       let n' = Option.get chan.n_instances in
-      let n = ParamConcretise.concretise_array_dimm chan.channel_class proc_params param_values n' in
+      let n = Except.with_span span (fun () ->
+        ParamConcretise.concretise_array_dimm chan.channel_class proc_params param_values n') in
       let left_nm_list = create_endpoint_array_string n [chan.endpoint_left] in
       let right_nm_list = create_endpoint_array_string n [chan.endpoint_right] in
       assert (List.length left_nm_list = List.length right_nm_list);
@@ -133,7 +134,8 @@ let create (channels : channel_def ast_node list)
         [({ep with foreign = get_foreign ep.name}, span)]
     | Some num ->
         (* let num_instances = in *)
-        let num_instances = ParamConcretise.concretise_array_dimm ep.name proc_params param_values num in
+        let num_instances = Except.with_span span (fun () ->
+          ParamConcretise.concretise_array_dimm ep.name proc_params param_values num) in
         let size_instances = get_size_instances num_instances in
         if size_instances <= 0 then
           raise (Except.TypeError [

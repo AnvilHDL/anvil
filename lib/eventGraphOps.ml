@@ -82,12 +82,6 @@ let print_dot_graph g out =
   Printf.fprintf out "}\n";
   Printf.fprintf out "// END GRAPH IN DOT FORMAT\n"
 
-let find_last_event g =
-  List.find (
-    fun e ->
-      e.is_recurse
-  ) g.events
-
 let string_of_actions action = 
   match action with
   | DebugPrint _ -> "DebugPrint"

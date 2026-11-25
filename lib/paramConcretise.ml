@@ -156,42 +156,23 @@ let concretise_message context params param_values (msg : Lang.message_def) =
 
 let concretise_array_dimm context params param_values (dimm : Lang.array_dimensions) : array_dimm_concrete =
   let (int_param_env, _) = build_param_envs context param_values params in
-  let mappings = ParamEnv.map_list (fun k v ->
-    Printf.sprintf "%s : %d\n" k v
-  ) int_param_env in
-  let mappings = String.concat "" mappings in
-
-  let get_concrete_params n = 
-    match ParamEnv.get_opt n with
-    | Some v -> v
-    | None -> failwith "Unreachable : Please report bug"
+  let resolve_dim n =
+    match n with
+    | ParamEnv.Concrete v -> v
+    | ParamEnv.Param id ->
+      match concretise_and_get int_param_env n with
+      | Some v -> v
+      | None ->
+        let candidates = ParamEnv.map_list (fun k _ -> (k, "parameter")) int_param_env in
+        raise (Except.TypeError (Except.Text (Printf.sprintf "no parameter named `%s`" id)
+          :: Except.did_you_mean id candidates
+          @ [Except.Note "the size of a channel array is an integer or an integer parameter of the process"]))
   in
   let rec concretise_dimm dimm =
     match dimm with
-    | Lang.OneDim n ->
-      let n' = match concretise_and_get int_param_env n with
-        | Some v -> ParamEnv.Concrete v
-        | None ->
-          Printf.eprintf "[ERROR] Failed to concretise array dimension parameter: %s | Current Mappings = %s\n"
-            (match n with
-             | ParamEnv.Concrete i -> Printf.sprintf "Concrete(%d)" i
-             | ParamEnv.Param p -> Printf.sprintf "Param(%s)" p)
-            mappings;
-          failwith "Array dimension concretisation failed"
-      in
-      Lang.OneDimmension (get_concrete_params n')
+    | Lang.OneDim n -> Lang.OneDimmension (resolve_dim n)
     | Lang.MultiDim (n, rest) ->
-      let rest' =  concretise_dimm rest in
-      let n' = match concretise_and_get int_param_env n with
-        | Some v -> ParamEnv.Concrete v
-        | None ->
-          Printf.eprintf "[ERROR] Failed to concretise array dimension parameter: %s | Current Mappings = %s\n"
-            (match n with
-             | ParamEnv.Concrete i -> Printf.sprintf "Concrete(%d)" i
-             | ParamEnv.Param p -> Printf.sprintf "Param(%s)" p)
-            mappings;
-          failwith "Array dimension concretisation failed"
-      in
-      Lang.MultiDimmension ((get_concrete_params n'), rest')
+      let rest' = concretise_dimm rest in
+      Lang.MultiDimmension (resolve_dim n, rest')
   in
   concretise_dimm dimm

@@ -15,9 +15,6 @@ val full_reg_range : Lang.identifier -> int -> EventGraph.subreg_range
 (** Return [true] if we don't know for sure that two subreg ranges don't intersect. *)
 val subreg_ranges_possibly_intersect : EventGraph.subreg_range -> EventGraph.subreg_range -> bool
 
-(** Find the last event (recurse) in a given event graph. *)
-val find_last_event : EventGraph.event_graph -> EventGraph.event
-
 val string_of_actions : EventGraph.action -> string
 
 val sub_reg_range : Lang.identifier -> int -> int -> EventGraph.subreg_range

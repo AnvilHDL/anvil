@@ -3,6 +3,18 @@ open GraphBuildContext
 open EventGraph
 open ErrorCollector
 
+(* The event where the thread starts again; a [recursive] thread needs a [recurse]. *)
+let restart_event (g : event_graph) =
+  match List.find_opt (fun (e : event) -> e.is_recurse) g.events with
+  | Some e -> e
+  | None ->
+    raise_fatal (Except.TypeError [
+      Text "this `recursive` thread never reaches `recurse`";
+      Label (None, g.thread_codespan, "no path through this thread ends in `recurse`");
+      Note "a `recursive` thread starts again only at `recurse`";
+      Help "end the thread with `recurse`, or write it as `loop { ... }`, which starts again whenever its body finishes"
+    ])
+
 (** Build, check, and optimise the event graph for a single thread body.
 
     @param config   Compilation configuration (controls lt-checks, two-round,
@@ -23,7 +35,7 @@ let build_thread config ci construct_graphIR (graph : event_graph) (e : Lang.exp
       let td  = construct_graphIR tmp_graph ci
         (Typing.BuildContext.create_empty tmp_graph true)
         unrolled_e in
-      tmp_graph.last_event_id <- (EventGraphOps.find_last_event tmp_graph).id;
+      tmp_graph.last_event_id <- (restart_event tmp_graph).id;
       tmp_graph.is_general_recursive <- tmp_graph.last_event_id <> td.ld.lt.live.id;
       (* Optimise before lifetime check so the check sees the simplified graph *)
       let tmp_graph = GraphOpt.optimize config true ci tmp_graph in
@@ -42,7 +54,7 @@ let build_thread config ci construct_graphIR (graph : event_graph) (e : Lang.exp
     (* discard after type checking *)
     let ctx = Typing.BuildContext.create_empty graph false in
     let td  = construct_graphIR graph ci ctx e in
-    graph.last_event_id <- (EventGraphOps.find_last_event graph).id;
+    graph.last_event_id <- (restart_event graph).id;
     graph.is_general_recursive <- graph.last_event_id <> td.ld.lt.live.id;
     let g' = GraphOpt.optimize config false ci graph in
     GraphOpt.combinational_codegen config g' ci
@@ -106,7 +118,11 @@ let build_proc (config : Config.compile_config) sched module_name param_values
       (module_name, s)
     ) body.spawns in
       if body.threads = [] then
-        raise (Except.TypeError [Text (Printf.sprintf "Process %s must have at least one thread!" proc.name)]);
+        raise_fatal (Except.TypeError [
+          Text (Printf.sprintf "`%s` has no threads" proc.name);
+          Except.codespan_local {proc.span with ed = {proc.span.st with pos_cnum = proc.span.st.pos_cnum + 4}};
+          Note "every process needs at least one thread, even one that only spawns other processes";
+          Help "add a thread to the process body, e.g. `loop { cycle 1 }`"]);
 
       let proc_threads = List.mapi (fun i ((e, reset_by) : expr_node * message_specifier option) ->
         let graph = {

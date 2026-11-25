@@ -58,7 +58,7 @@ let closest_name name candidates =
   let limit = max 1 (String.length name / 3) in
   List.filter (fun c -> c <> name) candidates
   |> List.map (fun c -> (edit_distance name c, c))
-  |> List.filter (fun (d, _) -> d <= limit)
+  |> List.filter (fun (d, _) -> d <= limit && d < String.length name)
   |> List.sort compare
   |> function
     | [] -> None
